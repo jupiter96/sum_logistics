@@ -1,0 +1,41 @@
+/node_modules
+__pycache__/
+*.py[cod]
+.sum_logistics-dev-links.json
+.env
+.env.backup
+.phpunit.result.cache
+.pnpm-store
+.tool-versions
+docker-compose.override.yml
+npm-debug.log
+yarn-error.log
+frontend/public/extensions.json
+backend/public/hot
+backend/public/storage
+backend/storage/*.key
+backend/storage/uploads
+backend/storage/public
+backend/vendor
+backend/composer.dev.json
+backend/composer-install-dev.sh
+backend/auth.json
+backend/crontab
+backend/go-crond
+backend/.sum_logistics-id
+act.sh
+composer-auth.json
+docker/database/*
+docker/database/mysql/*
+.talismanrc
+# asdf
+.tools-versions
+# binary build resources
+static-binary-build/osx/frankenphp
+# build artifacts
+/static-binary-build/dist/
+/static-binary-build/linux/static-php-cli-overrides/downloads/*
+*.exe
+*.dll
+*.so
+*.dylib
