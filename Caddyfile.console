@@ -1,0 +1,19 @@
+{
+	frankenphp
+	order php_server before file_server
+}
+
+http://:8000 {
+	root * /sum_logistics/api/public
+	encode zstd gzip
+	php_server {
+		resolve_root_symlink
+	}
+}
+
+http://:4200 {
+	root * /sum_logistics/console/dist
+	try_files {path} /
+	encode zstd gzip
+	file_server
+}
