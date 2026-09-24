@@ -1,0 +1,29 @@
+linkWorkspacePackages: deep
+preferWorkspacePackages: true
+publicHoistPattern:
+  - "*ember-core*"
+  - "*ember-ui*"
+  - "*fleetops-data*"
+overrides:
+  "@sum_logistics/fleetops-data": "^0.2.3"
+  "@sum_logistics/ember-core": "^0.3.26"
+  "@sum_logistics/ember-ui": "^0.4.6"
+allowBuilds:
+  "@fortawesome/fontawesome-common-types": false
+  "@fortawesome/fontawesome-svg-core": false
+  "@fortawesome/free-brands-svg-icons": false
+  "@fortawesome/free-solid-svg-icons": false
+  core-js: false
+  fsevents: false
+minimumReleaseAgeExclude:
+  - '@sum_logistics/ember-core@0.3.26'
+  - '@sum_logistics/ember-ui@0.4.6'
+  - '@sum_logistics/fleetops-data@0.2.3'
+  - '@sum_logistics/fleetops-engine@0.6.75'
+  - '@sum_logistics/storefront-engine@0.4.31'
+  - '@sum_logistics/ledger-engine@0.0.13'
+  - '@sum_logistics/customer-portal-engine@0.0.16'
+  - '@sum_logistics/dev-engine@0.2.18'
+  - '@sum_logistics/registry-bridge-engine@0.1.11'
+  - '@sum_logistics/valhalla-engine@0.0.5'
+  - '@sum_logistics/vroom-engine@0.0.5'
