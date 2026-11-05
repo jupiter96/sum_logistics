@@ -1,0 +1,7 @@
+**
+!backend/
+!backend/**
+!static-binary-build/
+!static-binary-build/linux/
+!static-binary-build/linux/static-php-cli-overrides/
+!static-binary-build/linux/static-php-cli-overrides/**
