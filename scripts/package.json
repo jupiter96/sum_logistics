@@ -1,0 +1,9 @@
+{
+    "name": "summit_logistics-scripts",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Summit_logistics package linker CLI.",
+    "bin": {
+        "flb-package-linker": "./package-linker.mjs"
+    }
+}
