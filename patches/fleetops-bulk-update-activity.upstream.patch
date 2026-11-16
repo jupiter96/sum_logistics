@@ -1,0 +1,1269 @@
+diff --git a/addon/components/modals/bulk-update-order-activity.hbs b/addon/components/modals/bulk-update-order-activity.hbs
+new file mode 100644
+index 0000000..e34d27f
+--- /dev/null
++++ b/addon/components/modals/bulk-update-order-activity.hbs
+@@ -0,0 +1,175 @@
++<Modal::Default @modalIsOpened={{@modalIsOpened}} @options={{@options}} @confirm={{perform this.confirm}} @decline={{@onDecline}}>
++    <div class="modal-body-container" data-test-bulk-order-activity>
++        {{#if (eq this.phase "select")}}
++            <div class="flex justify-between align-start">
++                <p class="flex-1 mb-5 dark:text-gray-100">
++                    {{t "modals.bulk-order-activity.select-message" count=this.orders.length}}
++                </p>
++                <Button
++                    @text={{t "order.actions.reload-activity"}}
++                    @icon="refresh"
++                    @size="xs"
++                    @wrapperClass="self-start"
++                    @isLoading={{this.loadOptions.isRunning}}
++                    @onClick={{perform this.loadOptions}}
++                />
++            </div>
++
++            {{#if this.loadOptions.isRunning}}
++                <div class="my-5" data-test-bulk-order-activity-loading>
++                    <ProgressBar @title={{t "modals.bulk-order-activity.loading"}} @percent={{this.loadPercent}} />
++                </div>
++            {{else}}
++                {{#if this.loadFailures.length}}
++                    <InfoBlock class="warning mb-4" @icon="exclamation-triangle" data-test-bulk-order-activity-load-failures>
++                        <div class="text-sm">{{t "modals.bulk-order-activity.load-failed" count=this.loadFailures.length}}</div>
++                        <ul class="mt-1 text-xs space-y-0.5">
++                            {{#each this.loadFailures as |failure|}}
++                                <li><span class="font-semibold">{{or failure.order.public_id failure.order.id}}</span>: {{failure.error}}</li>
++                            {{/each}}
++                        </ul>
++                    </InfoBlock>
++                {{/if}}
++
++                {{#unless this.activityGroups.length}}
++                    <InfoBlock class="mb-4" @icon="info-circle" @text={{t "modals.bulk-order-activity.no-options"}} data-test-bulk-order-activity-no-options />
++                {{/unless}}
++
++                <fieldset class="my-5">
++                    <legend class="sr-only">
++                        {{t "modals.order-new-activity.activity-options"}}
++                    </legend>
++
++                    <div class="radio-group-condensed -space-y-px">
++                        {{#each this.activityGroups as |group|}}
++                            <div class="radio-group-item shadow-sm {{if (eq this.selectedKey group.key) 'is-checked'}}" data-test-bulk-order-activity-option={{group.key}}>
++                                <div class="flex items-center h-5">
++                                    <RadioButton
++                                        @radioClass="focus:ring-blue-500"
++                                        @radioId={{group.radioId}}
++                                        @value={{group.key}}
++                                        @groupValue={{this.selectedKey}}
++                                        @name="bulk_order_activity"
++                                        @changed={{this.selectActivity}}
++                                    />
++                                </div>
++                                <label for={{group.radioId}} class="ml-3 flex flex-col cursor-pointer w-full">
++                                    <span class="block text-sm font-semibold">
++                                        {{or group.activity._resolved_status group.activity.status}}
++                                    </span>
++                                    <span class="block text-sm">
++                                        {{or group.activity._resolved_details group.activity.details}}
++
++                                        {{#if group.isDispatch}}
++                                            <InfoBlock @type="warning" @size="xs" @icon="exclamation-triangle" @text={{t "modals.order-new-activity.dispatch"}} class="mt-1" />
++                                        {{/if}}
++
++                                        {{#if group.requiresPod}}
++                                            <InfoBlock @type="warning" @size="xs" @icon="camera" @text={{t "modals.bulk-order-activity.requires-proof"}} class="mt-1" />
++                                        {{/if}}
++                                    </span>
++                                    <span
++                                        class="block mt-1 text-xs {{if group.isPartial 'text-yellow-700 dark:text-yellow-300' 'text-gray-500 dark:text-gray-400'}}"
++                                        data-test-bulk-order-activity-count
++                                    >
++                                        {{t "modals.bulk-order-activity.available-for" count=group.count total=this.orders.length}}
++                                    </span>
++                                </label>
++                                <div>
++                                    {{#if group.activity.code}}
++                                        <Badge @status={{dasherize group.activity.code}} class="uppercase">{{group.activity.code}}</Badge>
++                                    {{/if}}
++                                </div>
++                            </div>
++                        {{/each}}
++
++                        <div class="radio-group-item shadow-sm {{if this.isCustom 'is-checked'}}" data-test-bulk-order-activity-option="custom">
++                            <div class="flex items-center h-5 pt-1">
++                                <RadioButton
++                                    @radioClass="focus:ring-blue-500"
++                                    @radioId="bulk_activity_custom"
++                                    @value="custom"
++                                    @groupValue={{this.selectedKey}}
++                                    @name="bulk_order_activity"
++                                    @changed={{this.selectActivity}}
++                                />
++                            </div>
++                            <label for="bulk_activity_custom" class="ml-3 flex flex-col cursor-pointer w-full pr-5">
++                                <div class="font-semibold text-sm">{{t "modals.bulk-order-activity.custom-title"}}</div>
++                                <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{t "modals.bulk-order-activity.custom-help" count=this.orders.length}}</div>
++                                <span class="block text-sm font-medium mb-0.5">
++                                    <Input
++                                        @type="text"
++                                        @value={{this.customActivity.status}}
++                                        class="form-input form-input-sm w-full rounded-b-none"
++                                        placeholder={{t "modals.order-new-activity.status"}}
++                                    />
++                                </span>
++                                <span class="block text-sm">
++                                    <Input
++                                        @type="text"
++                                        @value={{this.customActivity.details}}
++                                        class="form-input form-input-sm w-full rounded-t-none"
++                                        placeholder={{t "modals.order-new-activity.details"}}
++                                    />
++                                </span>
++                            </label>
++                            <div>
++                                <Input @type="text" @value={{this.customActivity.code}} class="form-input form-input-sm" placeholder={{t "modals.order-new-activity.code"}} />
++                            </div>
++                        </div>
++                    </div>
++                </fieldset>
++
++                {{#if this.plan.skipped.length}}
++                    <InfoBlock class="warning mb-4" @icon="exclamation-triangle" data-test-bulk-order-activity-skipped>
++                        <div class="text-sm">{{t "modals.bulk-order-activity.will-skip" count=this.plan.skipped.length}}</div>
++                        <div class="mt-1 text-xs break-words">
++                            {{#each this.plan.skipped as |order index|}}{{if index ", "}}{{or order.public_id order.id}}{{/each}}
++                        </div>
++                    </InfoBlock>
++                {{/if}}
++
++                {{#if this.requiresProof}}
++                    <div
++                        class="mb-4 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-yellow-900 dark:border-yellow-700 dark:bg-yellow-900 dark:text-yellow-50"
++                        data-test-bulk-order-activity-proof
++                    >
++                        <div class="text-xs font-semibold uppercase">{{t "modals.bulk-order-activity.proof-title"}}</div>
++                        <div class="text-xs text-yellow-800 dark:text-yellow-100">{{t "modals.bulk-order-activity.proof-body"}}</div>
++                        <div class="mt-2 border-t border-yellow-50 pt-2 dark:border-yellow-700">
++                            <Toggle @isToggled={{this.bypassProof}} @onToggle={{this.toggleBypassProof}} @label={{t "modals.bulk-order-activity.bypass-proof"}} @labelClass="text-xs" />
++                        </div>
++                    </div>
++                {{/if}}
++            {{/if}}
++        {{else}}
++            <div class="my-2" data-test-bulk-order-activity-progress>
++                <ProgressBar @title={{if (eq this.phase "running") (t "modals.bulk-order-activity.updating") (t "modals.bulk-order-activity.finished")}} @percent={{this.runPercent}} />
++            </div>
++
++            <p class="mt-3 text-sm dark:text-gray-100" data-test-bulk-order-activity-summary>
++                {{t "modals.bulk-order-activity.summary" updated=this.summary.updated failed=this.summary.failed skipped=this.summary.skipped}}
++            </p>
++
++            <ul class="mt-3 max-h-64 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700 rounded-md border border-gray-200 dark:border-gray-700">
++                {{#each this.resultRows as |row|}}
++                    <li class="flex items-start justify-between gap-3 px-3 py-2" data-test-bulk-order-activity-row={{row.order.id}} data-test-state={{row.state}}>
++                        <div class="min-w-0">
++                            <div class="truncate text-sm font-semibold dark:text-gray-100">{{or row.order.public_id row.order.id}}</div>
++                            {{#if row.error}}
++                                <div class="text-xs text-red-600 dark:text-red-400" data-test-bulk-order-activity-error>{{row.error}}</div>
++                            {{/if}}
++                        </div>
++                        <span class="flex flex-shrink-0 items-center text-xs font-semibold {{row.stateClass}}">
++                            {{#if (eq row.state "updating")}}
++                                <Spinner class="mr-1" />
++                            {{/if}}
++                            {{row.label}}
++                        </span>
++                    </li>
++                {{/each}}
++            </ul>
++        {{/if}}
++    </div>
++</Modal::Default>
+\ No newline at end of file
+diff --git a/addon/components/modals/bulk-update-order-activity.js b/addon/components/modals/bulk-update-order-activity.js
+new file mode 100644
+index 0000000..60ac4bd
+--- /dev/null
++++ b/addon/components/modals/bulk-update-order-activity.js
+@@ -0,0 +1,290 @@
++import Component from '@glimmer/component';
++import { tracked } from '@glimmer/tracking';
++import { inject as service } from '@ember/service';
++import { action } from '@ember/object';
++import { task, all } from 'ember-concurrency';
++import { uniqueById, groupActivityOptions, partitionOrdersForGroup, isUsableCustomActivity, describeError } from '../../utils/bulk-order-activity';
++
++/**
++ * Requests in flight at once, for loading next activities and for applying the update.
++ */
++const CONCURRENCY = 5;
++
++const CUSTOM = 'custom';
++
++const STATE_CLASSES = {
++    pending: 'text-gray-500 dark:text-gray-400',
++    updating: 'text-blue-600 dark:text-blue-400',
++    updated: 'text-green-600 dark:text-green-400',
++    failed: 'text-red-600 dark:text-red-400',
++    skipped: 'text-yellow-700 dark:text-yellow-300',
++};
++
++/**
++ * Applies one activity to every selected order, the bulk counterpart of
++ * modals/update-order-activity.
++ *
++ * Each order offers only the activities its flow allows next, so the options are
++ * loaded per order and grouped by activity code; an option shows how many of the
++ * selected orders it applies to, and the orders it does not apply to are skipped.
++ * Updates go through the same `orders/update-activity/{id}` endpoint as the single
++ * order modal, a few at a time, and every order's outcome is listed with the
++ * server's error message when it fails.
++ *
++ * Options: `orders` (the selection), `onFinished(summary)` (called once the modal
++ * closes after any update was sent, including a close part way through).
++ */
++export default class ModalsBulkUpdateOrderActivityComponent extends Component {
++    @service fetch;
++    @service intl;
++    @service notifications;
++    @service modalsManager;
++
++    @tracked orders = [];
++    /** order id → { activities: Array, error: String|null } */
++    @tracked optionsByOrderId = {};
++    @tracked selectedKey = null;
++    @tracked customActivity = {};
++    @tracked bypassProof = false;
++    /** order id → { state: 'pending'|'updating'|'updated'|'failed'|'skipped', error: String|null } */
++    @tracked results = {};
++    /** 'select' | 'running' | 'done' */
++    @tracked phase = 'select';
++
++    hasStarted = false;
++
++    constructor(owner, { options = {} }) {
++        super(...arguments);
++        this.orders = uniqueById(options.orders);
++        this.loadOptions.perform();
++    }
++
++    willDestroy() {
++        super.willDestroy(...arguments);
++
++        if (!this.hasStarted) {
++            return;
++        }
++
++        const summary = this.summary;
++        if (this.phase === 'running') {
++            this.notifications.warning(this.intl.t('modals.bulk-order-activity.stopped', { done: summary.finished, total: summary.total }));
++        }
++
++        if (typeof this.args.options?.onFinished === 'function') {
++            this.args.options.onFinished(summary);
++        }
++    }
++
++    get loadPercent() {
++        return percentOf(Object.keys(this.optionsByOrderId).length, this.orders.length);
++    }
++
++    get activityGroups() {
++        const total = this.orders.length;
++
++        return groupActivityOptions(this.orders.map((order) => ({ id: order.id, activities: this.optionsByOrderId[order.id]?.activities }))).map((group, index) => ({
++            ...group,
++            radioId: `bulk_activity_${index}`,
++            isPartial: group.count < total,
++            isDispatch: group.activity?.code === 'dispatched',
++        }));
++    }
++
++    get loadFailures() {
++        return this.orders.filter((order) => this.optionsByOrderId[order.id]?.error).map((order) => ({ order, error: this.optionsByOrderId[order.id].error }));
++    }
++
++    get isCustom() {
++        return this.selectedKey === CUSTOM;
++    }
++
++    get selectedGroup() {
++        if (!this.selectedKey || this.isCustom) {
++            return null;
++        }
++
++        return this.activityGroups.find((group) => group.key === this.selectedKey) ?? null;
++    }
++
++    /**
++     * The orders the chosen activity is sent to, each with its own activity record, and
++     * the orders it skips. A custom activity is sent to every order.
++     */
++    get plan() {
++        if (this.isCustom) {
++            return { targets: this.orders.map((order) => ({ order, activity: this.customActivity })), skipped: [] };
++        }
++
++        if (!this.selectedGroup) {
++            return { targets: [], skipped: [] };
++        }
++
++        return partitionOrdersForGroup(this.orders, this.selectedGroup);
++    }
++
++    get requiresProof() {
++        return Boolean(this.selectedGroup?.requiresPod);
++    }
++
++    get summary() {
++        const states = Object.values(this.results).map((result) => result.state);
++        const count = (state) => states.filter((candidate) => candidate === state).length;
++        const updated = count('updated');
++        const failed = count('failed');
++        const skipped = count('skipped');
++
++        return { total: states.length - skipped, updated, failed, skipped, finished: updated + failed };
++    }
++
++    get runPercent() {
++        const { finished, total } = this.summary;
++        return percentOf(finished, total);
++    }
++
++    get resultRows() {
++        return this.orders
++            .filter((order) => this.results[order.id])
++            .map((order) => {
++                const { state, error } = this.results[order.id];
++
++                return {
++                    order,
++                    state,
++                    error,
++                    label: this.intl.t(`modals.bulk-order-activity.state-${state}`),
++                    stateClass: STATE_CLASSES[state],
++                };
++            });
++    }
++
++    @action selectActivity(key) {
++        this.selectedKey = key;
++        this.bypassProof = false;
++        this.syncAcceptButton();
++    }
++
++    @action toggleBypassProof(value) {
++        this.bypassProof = value;
++    }
++
++    /**
++     * Names how many orders the accept button will update, and disables it until an
++     * activity is chosen. Never called while the modal first renders: the opening
++     * options already start it disabled.
++     */
++    syncAcceptButton() {
++        const count = this.plan.targets.length;
++
++        this.modalsManager.setOptions({
++            acceptButtonDisabled: count === 0,
++            acceptButtonText: count > 0 ? this.intl.t('modals.bulk-order-activity.apply-to', { count }) : this.intl.t('modals.bulk-order-activity.apply'),
++        });
++    }
++
++    @task *loadOptions() {
++        const hadSelection = this.selectedKey !== null;
++
++        this.optionsByOrderId = {};
++        this.selectedKey = null;
++        this.bypassProof = false;
++
++        if (hadSelection) {
++            this.syncAcceptButton();
++        }
++
++        yield all(this.orders.map((order) => this.loadOrderOptions.perform(order)));
++    }
++
++    @task({ enqueue: true, maxConcurrency: CONCURRENCY }) *loadOrderOptions(order) {
++        let entry;
++
++        try {
++            const activities = yield this.fetch.get(`orders/next-activity/${order.id}`);
++            entry = { activities: Array.isArray(activities) ? activities : [], error: null };
++        } catch (error) {
++            entry = { activities: [], error: describeError(error) };
++        }
++
++        this.optionsByOrderId = { ...this.optionsByOrderId, [order.id]: entry };
++    }
++
++    @task({ drop: true }) *confirm(modal) {
++        if (this.phase === 'done') {
++            return modal.done();
++        }
++
++        if (this.phase !== 'select' || this.loadOptions.isRunning) {
++            return;
++        }
++
++        if (!this.selectedKey) {
++            return this.notifications.warning(this.intl.t('modals.bulk-order-activity.select-warning'));
++        }
++
++        if (this.isCustom && !isUsableCustomActivity(this.customActivity)) {
++            return this.notifications.warning(this.intl.t('modals.bulk-order-activity.custom-invalid'));
++        }
++
++        if (this.requiresProof && !this.bypassProof) {
++            return this.notifications.warning(this.intl.t('modals.bulk-order-activity.proof-warning'));
++        }
++
++        const { targets, skipped } = this.plan;
++        if (targets.length === 0) {
++            return this.notifications.warning(this.intl.t('modals.bulk-order-activity.no-targets'));
++        }
++
++        this.results = Object.fromEntries([
++            ...targets.map(({ order }) => [order.id, { state: 'pending', error: null }]),
++            ...skipped.map((order) => [order.id, { state: 'skipped', error: null }]),
++        ]);
++        this.phase = 'running';
++        this.hasStarted = true;
++        modal.startLoading();
++
++        yield all(targets.map((target) => this.updateOrder.perform(target)));
++
++        this.phase = 'done';
++        modal.stopLoading();
++        modal.setOptions({
++            acceptButtonText: this.intl.t('common.done'),
++            acceptButtonIcon: 'check',
++            hideDeclineButton: true,
++        });
++        this.notifySummary();
++    }
++
++    @task({ enqueue: true, maxConcurrency: CONCURRENCY }) *updateOrder({ order, activity }) {
++        this.setResult(order.id, { state: 'updating', error: null });
++
++        try {
++            yield this.fetch.patch(`orders/update-activity/${order.id}`, {
++                activity,
++                proof: null,
++                bypass_proof: Boolean(activity?.require_pod) && this.bypassProof,
++            });
++            this.setResult(order.id, { state: 'updated', error: null });
++        } catch (error) {
++            this.setResult(order.id, { state: 'failed', error: describeError(error) });
++        }
++    }
++
++    setResult(orderId, result) {
++        this.results = { ...this.results, [orderId]: result };
++    }
++
++    notifySummary() {
++        const { updated, failed, skipped } = this.summary;
++
++        if (failed === 0 && skipped === 0) {
++            return this.notifications.success(this.intl.t('modals.bulk-order-activity.all-updated', { count: updated }));
++        }
++
++        return this.notifications.warning(this.intl.t('modals.bulk-order-activity.summary', { updated, failed, skipped }));
++    }
++}
++
++function percentOf(part, total) {
++    return total > 0 ? Math.round((part / total) * 100) : 0;
++}
+diff --git a/addon/controllers/operations/orders/index.js b/addon/controllers/operations/orders/index.js
+index e857d71..8be7c89 100644
+--- a/addon/controllers/operations/orders/index.js
++++ b/addon/controllers/operations/orders/index.js
+@@ -130,6 +130,13 @@ export default class OperationsOrdersIndexController extends Controller {
+                 permission: 'fleet-ops delete order',
+             },
+             { separator: true },
++            {
++                id: 'bulk-update-activity',
++                label: this.intl.t('order.actions.update-activity'),
++                icon: 'signal',
++                fn: this.orderActions.bulkUpdateActivity,
++                permission: 'fleet-ops update order',
++            },
+             {
+                 id: 'bulk-dispatch',
+                 label: this.intl.t('common.dispatch-orders'),
+diff --git a/addon/services/order-actions.js b/addon/services/order-actions.js
+index 32ad736..b514287 100644
+--- a/addon/services/order-actions.js
++++ b/addon/services/order-actions.js
+@@ -3,6 +3,7 @@ import { action } from '@ember/object';
+ import { isArray } from '@ember/array';
+ import { debug } from '@ember/debug';
+ import { task } from 'ember-concurrency';
++import { uniqueById } from '../utils/bulk-order-activity';
+ 
+ export default class OrderActionsService extends ResourceActionService {
+     @service store;
+@@ -312,6 +313,30 @@ export default class OrderActionsService extends ResourceActionService {
+         });
+     }
+ 
++    /**
++     * Applies one activity to every selected order (modals/bulk-update-order-activity).
++     * Each order gets its own update-activity request, so one failure does not stop
++     * the rest; the table is refreshed and the selection cleared once the modal closes.
++     */
++    @action bulkUpdateActivity(selected = []) {
++        // The bulk-actions dropdown passes the click event, not rows; selected rows come
++        // from the table. De-duplicated because each order is sent its own request.
++        const orders = uniqueById([...(isArray(selected) ? selected : []), ...this.tableContext.getSelectedRows()]);
++        if (orders.length === 0) return;
++
++        return this.modalsManager.show('modals/bulk-update-order-activity', {
++            title: this.intl.t('order.actions.update-activity-for-orders', { count: orders.length }),
++            acceptButtonText: this.intl.t('modals.bulk-order-activity.apply'),
++            acceptButtonIcon: 'check',
++            acceptButtonDisabled: true,
++            orders,
++            onFinished: async () => {
++                this.tableContext.untoggleSelectAll();
++                await this.hostRouter.refresh();
++            },
++        });
++    }
++
+     @action editOrderDetails(order, options = {}) {
+         options = options === null ? {} : options;
+ 
+diff --git a/addon/utils/bulk-order-activity.js b/addon/utils/bulk-order-activity.js
+new file mode 100644
+index 0000000..0d980da
+--- /dev/null
++++ b/addon/utils/bulk-order-activity.js
+@@ -0,0 +1,163 @@
++/**
++ * Helpers for applying one activity to many orders at once.
++ *
++ * Each order only offers the activities its own order flow allows next (from
++ * `orders/next-activity/{id}`), so a bulk update cannot show one fixed list. These
++ * helpers group the per-order options into "the same activity" across orders and
++ * work out which orders a chosen activity applies to. They are plain functions with
++ * no Ember imports so they can be unit tested on their own.
++ */
++
++/**
++ * The key that identifies the same activity across orders: its code, or its status
++ * when an activity has no code. Returns null for an activity with neither.
++ *
++ * @param {Object} activity
++ * @return {String|null}
++ */
++export function activityKey(activity) {
++    const code = typeof activity?.code === 'string' ? activity.code.trim() : '';
++    if (code) {
++        return `code:${code}`;
++    }
++
++    const status = typeof activity?.status === 'string' ? activity.status.trim().toLowerCase() : '';
++    return status ? `status:${status}` : null;
++}
++
++/**
++ * Drops records whose id was already seen, keeping the first. Records without an id
++ * are dropped too: an activity update cannot be sent for them.
++ *
++ * @param {Array} records
++ * @return {Array}
++ */
++export function uniqueById(records = []) {
++    const seen = new Set();
++
++    return (Array.isArray(records) ? records : []).filter((record) => {
++        const id = record?.id;
++        if (id === undefined || id === null || id === '' || seen.has(id)) {
++            return false;
++        }
++
++        seen.add(id);
++        return true;
++    });
++}
++
++/**
++ * Groups the next activities of several orders by activityKey().
++ *
++ * Every group keeps each order's own activity record, because the server resolves
++ * templated status and details per order and, for configs without strict
++ * transitions, stores the record it is sent.
++ *
++ * Groups available to the most orders come first; ties keep the order in which the
++ * activities were first seen.
++ *
++ * @param {Array<{id: String, activities: Array}>} entries one entry per order
++ * @return {Array<{key: String, activity: Object, count: Number, orderIds: Array<String>, activitiesByOrderId: Map, requiresPod: Boolean}>}
++ */
++export function groupActivityOptions(entries = []) {
++    const groups = new Map();
++
++    (Array.isArray(entries) ? entries : []).forEach((entry) => {
++        const activities = Array.isArray(entry?.activities) ? entry.activities : [];
++
++        activities.forEach((activity) => {
++            const key = activityKey(activity);
++            if (!key) {
++                return;
++            }
++
++            if (!groups.has(key)) {
++                groups.set(key, { key, activity, position: groups.size, activitiesByOrderId: new Map() });
++            }
++
++            const group = groups.get(key);
++            if (!group.activitiesByOrderId.has(entry.id)) {
++                group.activitiesByOrderId.set(entry.id, activity);
++            }
++        });
++    });
++
++    return [...groups.values()]
++        .sort((a, b) => b.activitiesByOrderId.size - a.activitiesByOrderId.size || a.position - b.position)
++        .map(({ key, activity, activitiesByOrderId }) => {
++            const perOrder = [...activitiesByOrderId.values()];
++
++            return {
++                key,
++                activity,
++                count: activitiesByOrderId.size,
++                orderIds: [...activitiesByOrderId.keys()],
++                activitiesByOrderId,
++                requiresPod: perOrder.some((candidate) => Boolean(candidate?.require_pod)),
++            };
++        });
++}
++
++/**
++ * Splits orders into those a group applies to, each paired with its own activity
++ * record, and those it does not.
++ *
++ * @param {Array} orders
++ * @param {Object|null} group a group from groupActivityOptions()
++ * @return {{targets: Array<{order: Object, activity: Object}>, skipped: Array}}
++ */
++export function partitionOrdersForGroup(orders = [], group = null) {
++    const targets = [];
++    const skipped = [];
++
++    (Array.isArray(orders) ? orders : []).forEach((order) => {
++        const activity = group?.activitiesByOrderId?.get(order?.id);
++
++        if (activity) {
++            targets.push({ order, activity });
++        } else {
++            skipped.push(order);
++        }
++    });
++
++    return { targets, skipped };
++}
++
++/**
++ * The message to show for a failed request, read the way notifications.serverError()
++ * reads it: an `errors` array, then an Error's message, then a plain string.
++ *
++ * @param {*} error
++ * @param {String} fallback
++ * @return {String}
++ */
++export function describeError(error, fallback = 'Request failed.') {
++    if (Array.isArray(error?.errors) && typeof error.errors[0] === 'string' && error.errors[0] !== '') {
++        return error.errors[0];
++    }
++
++    if (error instanceof Error && error.message) {
++        return error.message;
++    }
++
++    if (typeof error === 'string' && error !== '') {
++        return error;
++    }
++
++    if (typeof error?.message === 'string' && error.message !== '') {
++        return error.message;
++    }
++
++    return fallback;
++}
++
++/**
++ * Whether a custom activity has enough to be sent: the same rule as the single-order
++ * activity modal (a status, details or code).
++ *
++ * @param {Object} activity
++ * @return {Boolean}
++ */
++export function isUsableCustomActivity(activity) {
++    return ['status', 'details', 'code'].some((field) => typeof activity?.[field] === 'string' && activity[field].trim() !== '');
++}
+diff --git a/app/components/modals/bulk-update-order-activity.js b/app/components/modals/bulk-update-order-activity.js
+new file mode 100644
+index 0000000..af173a2
+--- /dev/null
++++ b/app/components/modals/bulk-update-order-activity.js
+@@ -0,0 +1 @@
++export { default } from '@fleetbase/fleetops-engine/components/modals/bulk-update-order-activity';
+diff --git a/tests/integration/components/modals/bulk-update-order-activity-test.js b/tests/integration/components/modals/bulk-update-order-activity-test.js
+new file mode 100644
+index 0000000..5b26938
+--- /dev/null
++++ b/tests/integration/components/modals/bulk-update-order-activity-test.js
+@@ -0,0 +1,275 @@
++import Service from '@ember/service';
++import { set, setProperties } from '@ember/object';
++import { module, test } from 'qunit';
++import { setupRenderingTest } from 'dummy/tests/helpers';
++import { render, click, fillIn, findAll, find, waitUntil, clearRender, settled } from '@ember/test-helpers';
++import { setupIntl } from 'ember-intl/test-support';
++import { hbs } from 'ember-cli-htmlbars';
++
++const arrived = (id) => ({ code: 'arrived', status: 'Arrived', details: 'Arrived at pickup', _resolved_status: `Arrived at ${id}` });
++const enroute = { code: 'enroute', status: 'En Route', details: 'Driver is en route' };
++
++class FetchStub extends Service {
++    nextActivity = {};
++    patchErrors = {};
++    patches = [];
++    inFlight = 0;
++    maxInFlight = 0;
++    holdPatches = false;
++    held = [];
++
++    get(path) {
++        const value = this.nextActivity[path.replace('orders/next-activity/', '')];
++        return value instanceof Error ? Promise.reject(value) : Promise.resolve(value ?? []);
++    }
++
++    patch(path, body) {
++        const id = path.replace('orders/update-activity/', '');
++        this.patches.push({ id, body });
++        this.inFlight++;
++        this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
++
++        const settle = () => {
++            this.inFlight--;
++            return this.patchErrors[id] ? Promise.reject(this.patchErrors[id]) : Promise.resolve({});
++        };
++
++        return this.holdPatches ? new Promise((resolve) => this.held.push(resolve)).then(settle) : Promise.resolve().then(settle);
++    }
++
++    release() {
++        const held = this.held;
++        this.held = [];
++        held.forEach((resolve) => resolve());
++    }
++}
++
++class NotificationsStub extends Service {
++    warnings = [];
++    successes = [];
++
++    warning(message) {
++        this.warnings.push(message);
++    }
++
++    success(message) {
++        this.successes.push(message);
++    }
++
++    serverError() {}
++}
++
++/** Applies option changes to the same object the modal renders from, as the real manager does. */
++class ModalsManagerStub extends Service {
++    modals = [];
++    calls = [];
++    options = null;
++
++    setOption(key, value) {
++        set(this.options, key, value);
++    }
++
++    setOptions(values) {
++        setProperties(this.options, values);
++    }
++
++    startLoading() {
++        this.calls.push('startLoading');
++        this.setOption('isLoading', true);
++    }
++
++    stopLoading() {
++        this.calls.push('stopLoading');
++        this.setOption('isLoading', false);
++    }
++
++    done() {
++        this.calls.push('done');
++        return Promise.resolve();
++    }
++}
++
++const acceptButton = () => {
++    const buttons = findAll('.modal-footer-actions button');
++    return buttons[buttons.length - 1];
++};
++
++const optionsLoaded = () => waitUntil(() => !find('[data-test-bulk-order-activity-loading]') && find('[data-test-bulk-order-activity-option="custom"]'));
++const runFinished = () => waitUntil(() => find('[data-test-bulk-order-activity-row]') && !find('[data-test-state="pending"], [data-test-state="updating"]'));
++
++module('Integration | Component | modals/bulk-update-order-activity', function (hooks) {
++    setupRenderingTest(hooks);
++    setupIntl(hooks, 'en-us');
++
++    hooks.beforeEach(function () {
++        this.owner.register('service:fetch', FetchStub);
++        this.owner.register('service:notifications', NotificationsStub);
++        this.owner.register('service:modals-manager', ModalsManagerStub);
++
++        this.fetch = this.owner.lookup('service:fetch');
++        this.notifications = this.owner.lookup('service:notifications');
++        this.modalsManager = this.owner.lookup('service:modals-manager');
++        this.finished = [];
++
++        this.open = async (orders) => {
++            this.set('options', {
++                title: 'Update Activity',
++                acceptButtonText: 'Apply Activity',
++                acceptButtonDisabled: true,
++                orders,
++                onFinished: (summary) => this.finished.push(summary),
++            });
++            this.modalsManager.options = this.options;
++
++            await render(hbs`<Modals::BulkUpdateOrderActivity @options={{this.options}} @modalIsOpened={{true}} />`);
++            await optionsLoaded();
++        };
++
++        this.orders = [
++            { id: 'o1', public_id: 'O-1' },
++            { id: 'o2', public_id: 'O-2' },
++            { id: 'o3', public_id: 'O-3' },
++        ];
++    });
++
++    test('it groups each order’s next activities and says how many orders each one applies to', async function (assert) {
++        this.fetch.nextActivity = { o1: [arrived('o1'), enroute], o2: [arrived('o2')], o3: new Error('Order not found.') };
++
++        await this.open(this.orders);
++
++        assert.dom('[data-test-bulk-order-activity-option]').exists({ count: 3 }, 'arrived, en route and the custom activity');
++        assert.dom('[data-test-bulk-order-activity-option="code:arrived"] [data-test-bulk-order-activity-count]').hasText('Available for 2 of 3 orders');
++        assert.dom('[data-test-bulk-order-activity-option="code:enroute"] [data-test-bulk-order-activity-count]').hasText('Available for 1 of 3 orders');
++        assert.dom('[data-test-bulk-order-activity-load-failures]').includesText('O-3').includesText('Order not found.');
++        assert.dom(acceptButton()).isDisabled('nothing to apply until an activity is chosen');
++
++        await click('[data-test-bulk-order-activity-option="code:arrived"] input[type="radio"]');
++
++        assert.dom('[data-test-bulk-order-activity-skipped]').includesText('1 order will be skipped').includesText('O-3');
++        assert.dom(acceptButton()).isNotDisabled().hasText('Apply to 2 Orders');
++
++        await clearRender();
++        assert.deepEqual(this.finished, [], 'closing before anything was sent does not refresh the table');
++    });
++
++    test('it sends every order its own activity record and reports each order’s outcome', async function (assert) {
++        this.fetch.nextActivity = { o1: [arrived('o1')], o2: [arrived('o2')], o3: [enroute] };
++        this.fetch.patchErrors = { o2: new Error('No driver assigned for order to dispatch to.') };
++
++        await this.open(this.orders);
++        await click('[data-test-bulk-order-activity-option="code:arrived"] input[type="radio"]');
++        await click(acceptButton());
++        await runFinished();
++
++        assert.deepEqual(
++            this.fetch.patches.map(({ id, body }) => [id, body.activity._resolved_status, body.proof, body.bypass_proof]),
++            [
++                ['o1', 'Arrived at o1', null, false],
++                ['o2', 'Arrived at o2', null, false],
++            ],
++            'o3 does not offer the activity and is not sent it'
++        );
++        assert.dom('[data-test-bulk-order-activity-row="o1"]').hasAttribute('data-test-state', 'updated').includesText('Updated');
++        assert.dom('[data-test-bulk-order-activity-row="o2"]').hasAttribute('data-test-state', 'failed');
++        assert.dom('[data-test-bulk-order-activity-row="o2"] [data-test-bulk-order-activity-error]').hasText('No driver assigned for order to dispatch to.');
++        assert.dom('[data-test-bulk-order-activity-row="o3"]').hasAttribute('data-test-state', 'skipped');
++        assert.dom('[data-test-bulk-order-activity-summary]').hasText('1 updated, 1 failed, 1 skipped');
++        assert.deepEqual(this.notifications.warnings, ['1 updated, 1 failed, 1 skipped']);
++        assert.dom(acceptButton()).hasText('Done');
++
++        await click(acceptButton());
++        assert.deepEqual(this.modalsManager.calls, ['startLoading', 'stopLoading', 'done']);
++
++        await clearRender();
++        assert.deepEqual(this.finished, [{ total: 2, updated: 1, failed: 1, skipped: 1, finished: 2 }], 'the table is refreshed once the modal closes');
++    });
++
++    test('it says so when every order was updated', async function (assert) {
++        this.fetch.nextActivity = { o1: [arrived('o1')], o2: [arrived('o2')] };
++
++        await this.open(this.orders.slice(0, 2));
++        await click('[data-test-bulk-order-activity-option="code:arrived"] input[type="radio"]');
++        await click(acceptButton());
++        await runFinished();
++
++        assert.deepEqual(this.notifications.successes, ['2 orders updated.']);
++        assert.deepEqual(this.notifications.warnings, []);
++    });
++
++    test('an activity that needs photo proof is only sent once proof is bypassed, and only flags the orders that need it', async function (assert) {
++        this.fetch.nextActivity = {
++            o1: [{ code: 'completed', status: 'Completed', require_pod: true }],
++            o2: [{ code: 'completed', status: 'Completed' }],
++        };
++
++        await this.open(this.orders.slice(0, 2));
++        await click('[data-test-bulk-order-activity-option="code:completed"] input[type="radio"]');
++
++        assert.dom('[data-test-bulk-order-activity-proof]').exists();
++
++        await click(acceptButton());
++        assert.strictEqual(this.fetch.patches.length, 0, 'nothing is sent without proof or a bypass');
++        assert.deepEqual(this.notifications.warnings, ['Turn on bypass proof of delivery, or update these orders one at a time to upload photo proof.']);
++
++        await click('[data-test-bulk-order-activity-proof] [role="checkbox"]');
++        await click(acceptButton());
++        await runFinished();
++
++        assert.deepEqual(
++            this.fetch.patches.map(({ id, body }) => [id, body.bypass_proof]),
++            [
++                ['o1', true],
++                ['o2', false],
++            ]
++        );
++    });
++
++    test('a custom activity needs content and then goes to every order, even one whose options failed to load', async function (assert) {
++        this.fetch.nextActivity = { o1: [arrived('o1')], o2: [], o3: new Error('Order not found.') };
++
++        await this.open(this.orders);
++        await click('[data-test-bulk-order-activity-option="custom"] input[type="radio"]');
++        assert.dom(acceptButton()).hasText('Apply to 3 Orders');
++
++        await click(acceptButton());
++        assert.strictEqual(this.fetch.patches.length, 0);
++        assert.deepEqual(this.notifications.warnings, ['Enter a status, details or code for the custom activity.']);
++
++        const [statusInput] = findAll('[data-test-bulk-order-activity-option="custom"] input[type="text"]');
++        await fillIn(statusInput, 'Held at depot');
++        await click(acceptButton());
++        await runFinished();
++
++        assert.deepEqual(
++            this.fetch.patches.map(({ id, body }) => [id, body.activity.status]),
++            [
++                ['o1', 'Held at depot'],
++                ['o2', 'Held at depot'],
++                ['o3', 'Held at depot'],
++            ]
++        );
++    });
++
++    test('it sends at most five updates at once, and closing part way stops the rest', async function (assert) {
++        const orders = Array.from({ length: 7 }, (_, index) => ({ id: `o${index + 1}`, public_id: `O-${index + 1}` }));
++        this.fetch.nextActivity = Object.fromEntries(orders.map(({ id }) => [id, [arrived(id)]]));
++        this.fetch.holdPatches = true;
++
++        await this.open(orders);
++        await click('[data-test-bulk-order-activity-option="code:arrived"] input[type="radio"]');
++        await click(acceptButton());
++        await waitUntil(() => this.fetch.patches.length === 5);
++
++        assert.strictEqual(this.fetch.maxInFlight, 5);
++        assert.dom('[data-test-state="updating"]').exists({ count: 5 });
++        assert.dom('[data-test-state="pending"]').exists({ count: 2 });
++
++        await clearRender();
++        this.fetch.release();
++        await settled();
++
++        assert.strictEqual(this.fetch.patches.length, 5, 'the two queued updates are never sent');
++        assert.deepEqual(this.notifications.warnings, ['Bulk activity update stopped after 0 of 7 orders. Updates already sent may still complete.']);
++        assert.deepEqual(this.finished, [{ total: 7, updated: 0, failed: 0, skipped: 0, finished: 0 }]);
++    });
++});
+diff --git a/tests/node/bulk-order-activity.test.mjs b/tests/node/bulk-order-activity.test.mjs
+new file mode 100644
+index 0000000..294b584
+--- /dev/null
++++ b/tests/node/bulk-order-activity.test.mjs
+@@ -0,0 +1,100 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { activityKey, uniqueById, groupActivityOptions, partitionOrdersForGroup, isUsableCustomActivity, describeError } from '../../addon/utils/bulk-order-activity.js';
++
++const arrived = (order) => ({ code: 'arrived', status: 'Arrived', _resolved_status: `Arrived at ${order}` });
++const enroute = { code: 'enroute', status: 'En Route' };
++const completed = { code: 'completed', status: 'Completed', require_pod: true };
++
++test('activities are the same across orders when their code matches, or their status when there is no code', () => {
++    assert.equal(activityKey({ code: ' arrived ', status: 'Arrived' }), 'code:arrived');
++    assert.equal(activityKey({ status: ' At Gate ' }), 'status:at gate');
++    assert.equal(activityKey({ code: '', status: '' }), null);
++    assert.equal(activityKey(null), null);
++});
++
++test('uniqueById keeps the first record per id and drops records without one', () => {
++    const a = { id: 'order_1' };
++    const b = { id: 'order_2' };
++
++    assert.deepEqual(uniqueById([a, b, { id: 'order_1' }, { id: '' }, null, {}]), [a, b]);
++    assert.deepEqual(uniqueById(undefined), []);
++});
++
++test('options are grouped by activity, most widely available first, keeping each order its own record', () => {
++    const groups = groupActivityOptions([
++        { id: 'order_1', activities: [enroute, arrived('order_1')] },
++        { id: 'order_2', activities: [arrived('order_2'), completed] },
++        { id: 'order_3', activities: [arrived('order_3')] },
++        { id: 'order_4', activities: undefined },
++    ]);
++
++    assert.deepEqual(
++        groups.map(({ key, count }) => [key, count]),
++        [
++            ['code:arrived', 3],
++            ['code:enroute', 1],
++            ['code:completed', 1],
++        ]
++    );
++
++    const [arrivedGroup] = groups;
++    assert.deepEqual(arrivedGroup.orderIds, ['order_1', 'order_2', 'order_3']);
++    assert.equal(arrivedGroup.activitiesByOrderId.get('order_2')._resolved_status, 'Arrived at order_2');
++    assert.equal(arrivedGroup.activity._resolved_status, 'Arrived at order_1');
++    assert.equal(arrivedGroup.requiresPod, false);
++    assert.equal(groups[2].requiresPod, true);
++});
++
++test('an order listing the same activity twice counts once, and its first record wins', () => {
++    const first = { code: 'arrived', status: 'Arrived', details: 'first' };
++    const [group] = groupActivityOptions([{ id: 'order_1', activities: [first, { code: 'arrived', status: 'Arrived', details: 'second' }] }]);
++
++    assert.equal(group.count, 1);
++    assert.equal(group.activitiesByOrderId.get('order_1'), first);
++});
++
++test('proof is required for a group when any order needs it for that activity', () => {
++    const [group] = groupActivityOptions([
++        { id: 'order_1', activities: [{ code: 'completed', status: 'Completed' }] },
++        { id: 'order_2', activities: [{ code: 'completed', status: 'Completed', require_pod: true }] },
++    ]);
++
++    assert.equal(group.requiresPod, true);
++});
++
++test('a group applies to the orders that offer it, each with its own record, and skips the rest', () => {
++    const orders = [{ id: 'order_1' }, { id: 'order_2' }, { id: 'order_3' }];
++    const [group] = groupActivityOptions([
++        { id: 'order_1', activities: [arrived('order_1')] },
++        { id: 'order_3', activities: [arrived('order_3')] },
++    ]);
++
++    const { targets, skipped } = partitionOrdersForGroup(orders, group);
++    assert.deepEqual(
++        targets.map(({ order, activity }) => [order.id, activity._resolved_status]),
++        [
++            ['order_1', 'Arrived at order_1'],
++            ['order_3', 'Arrived at order_3'],
++        ]
++    );
++    assert.deepEqual(skipped, [orders[1]]);
++
++    assert.deepEqual(partitionOrdersForGroup(orders, null), { targets: [], skipped: orders });
++});
++
++test('a custom activity needs a status, details or code', () => {
++    assert.equal(isUsableCustomActivity({}), false);
++    assert.equal(isUsableCustomActivity({ status: '   ', details: '' }), false);
++    assert.equal(isUsableCustomActivity({ code: 'held_at_depot' }), true);
++    assert.equal(isUsableCustomActivity({ details: 'Waiting for dock' }), true);
++});
++
++test('a failed update shows the server message the way serverError() reads it', () => {
++    assert.equal(describeError({ errors: ['This activity is not a permitted next step for the order.'] }), 'This activity is not a permitted next step for the order.');
++    assert.equal(describeError(new Error('No driver assigned for order to dispatch to.')), 'No driver assigned for order to dispatch to.');
++    assert.equal(describeError('Network error'), 'Network error');
++    assert.equal(describeError({ message: 'Proof of delivery is required.' }), 'Proof of delivery is required.');
++    assert.equal(describeError({ errors: [] }, 'Fallback'), 'Fallback');
++    assert.equal(describeError(undefined), 'Request failed.');
++});
+diff --git a/tests/unit/controllers/operations/orders/index-test.js b/tests/unit/controllers/operations/orders/index-test.js
+new file mode 100644
+index 0000000..6431050
+--- /dev/null
++++ b/tests/unit/controllers/operations/orders/index-test.js
+@@ -0,0 +1,24 @@
++import { module, test } from 'qunit';
++import { setupTest } from 'dummy/tests/helpers';
++import Service from '@ember/service';
++
++module('Unit | Controller | operations/orders/index', function (hooks) {
++    setupTest(hooks);
++
++    hooks.beforeEach(function () {
++        // The engine host provides this; the dummy app does not.
++        this.owner.register('service:hostRouter', class extends Service {});
++    });
++
++    test('the bulk actions offer updating the activity of the selected orders', function (assert) {
++        const controller = this.owner.lookup('controller:operations/orders/index');
++        const orderActions = this.owner.lookup('service:order-actions');
++
++        const updateActivity = controller.bulkActions.find((bulkAction) => bulkAction.id === 'bulk-update-activity');
++
++        assert.ok(updateActivity, 'the action is listed');
++        assert.strictEqual(updateActivity.fn, orderActions.bulkUpdateActivity);
++        assert.strictEqual(updateActivity.permission, 'fleet-ops update order', 'the same permission as updating one order’s activity');
++        assert.strictEqual(updateActivity.icon, 'signal');
++    });
++});
+diff --git a/tests/unit/services/order-actions-test.js b/tests/unit/services/order-actions-test.js
+index de91b25..301c5c7 100644
+--- a/tests/unit/services/order-actions-test.js
++++ b/tests/unit/services/order-actions-test.js
+@@ -1,5 +1,7 @@
+ import { module, test } from 'qunit';
+ import { setupTest } from 'dummy/tests/helpers';
++import { setupIntl } from 'ember-intl/test-support';
++import Service from '@ember/service';
+ 
+ module('Unit | Service | order-actions', function (hooks) {
+     setupTest(hooks);
+@@ -9,4 +11,75 @@ module('Unit | Service | order-actions', function (hooks) {
+         let service = this.owner.lookup('service:order-actions');
+         assert.ok(service);
+     });
++
++    module('bulkUpdateActivity', function (hooks) {
++        setupIntl(hooks, 'en-us');
++
++        hooks.beforeEach(function () {
++            const shown = (this.shown = []);
++
++            this.owner.register(
++                'service:modals-manager',
++                class extends Service {
++                    show(template, options) {
++                        shown.push({ template, options });
++                    }
++                }
++            );
++            this.owner.register(
++                'service:table-context',
++                class extends Service {
++                    selected = [];
++                    untoggled = 0;
++
++                    getSelectedRows() {
++                        return this.selected;
++                    }
++
++                    untoggleSelectAll() {
++                        this.untoggled++;
++                    }
++                }
++            );
++            this.owner.register(
++                'service:host-router',
++                class extends Service {
++                    refreshed = 0;
++
++                    refresh() {
++                        this.refreshed++;
++                        return Promise.resolve();
++                    }
++                }
++            );
++
++            this.tableContext = this.owner.lookup('service:table-context');
++            this.service = this.owner.lookup('service:order-actions');
++        });
++
++        test('it opens the bulk activity modal for the selected orders, each once', async function (assert) {
++            const first = { id: 'order_1' };
++            const second = { id: 'order_2' };
++            this.tableContext.selected = [first, second];
++
++            this.service.bulkUpdateActivity([first]);
++
++            assert.strictEqual(this.shown.length, 1);
++            const [{ template, options }] = this.shown;
++            assert.strictEqual(template, 'modals/bulk-update-order-activity');
++            assert.deepEqual(options.orders, [first, second], 'an order passed in and also selected is sent one request, not two');
++            assert.strictEqual(options.title, 'Update Activity for 2 Orders');
++            assert.true(options.acceptButtonDisabled, 'nothing to apply until an activity is chosen');
++
++            await options.onFinished({ updated: 2 });
++            assert.strictEqual(this.tableContext.untoggled, 1, 'the selection is cleared');
++            assert.strictEqual(this.owner.lookup('service:host-router').refreshed, 1, 'the table is refreshed');
++        });
++
++        test('the bulk actions menu passes a click event, which is not a selection; with no rows selected nothing opens', function (assert) {
++            this.service.bulkUpdateActivity(new Event('click'));
++
++            assert.strictEqual(this.shown.length, 0);
++        });
++    });
+ });
+diff --git a/translations/en-us.yaml b/translations/en-us.yaml
+index 5831cc8..985c78e 100644
+--- a/translations/en-us.yaml
++++ b/translations/en-us.yaml
+@@ -1210,6 +1210,7 @@ order:
+         edit-order-route: Edit Order Route
+         edit-order-metadata: Edit Order Metadata
+         update-order-activity: Update Order Activity
++        update-activity-for-orders: "Update Activity for {count, plural, one {# Order} other {# Orders}}"
+         submit-new-activity: Submit New Activity
+         add-entity: Add Entity
+         unassign-driver-name: >-
+@@ -2127,6 +2128,36 @@ modals:
+         code: Custom activity code
+         fleetbase-message: Fleetbase does not recommend this unless you absolutely know what you're doing.
+ 
++    bulk-order-activity:
++        select-message: "Choose the activity to apply to the {count, plural, one {selected order} other {# selected orders}}. Each order only offers the activities its order flow allows next, so an activity may apply to some of them only."
++        loading: Loading activity options
++        load-failed: "Activity options could not be loaded for {count, plural, one {# order} other {# orders}}:"
++        no-options: None of the selected orders has a next activity available. You can still apply a custom activity.
++        available-for: "Available for {count} of {total} orders"
++        requires-proof: Requires photo proof of delivery
++        custom-title: Add custom activity
++        custom-help: "Applied to all {count, plural, one {# order} other {# orders}}."
++        custom-invalid: Enter a status, details or code for the custom activity.
++        will-skip: "{count, plural, one {# order} other {# orders}} will be skipped because this activity is not available for {count, plural, one {it} other {them}}:"
++        proof-title: Photo proof required
++        proof-body: Photo proof can't be uploaded in bulk. Bypass proof of delivery for these orders, or update them one at a time.
++        bypass-proof: Bypass proof of delivery
++        proof-warning: Turn on bypass proof of delivery, or update these orders one at a time to upload photo proof.
++        select-warning: Select an activity to apply.
++        no-targets: None of the selected orders can take this activity.
++        apply: Apply Activity
++        apply-to: "Apply to {count, plural, one {# Order} other {# Orders}}"
++        updating: Updating orders
++        finished: Finished
++        summary: "{updated} updated, {failed} failed, {skipped} skipped"
++        all-updated: "{count, plural, one {# order} other {# orders}} updated."
++        stopped: "Bulk activity update stopped after {done} of {total} orders. Updates already sent may still complete."
++        state-pending: Waiting
++        state-updating: Updating
++        state-updated: Updated
++        state-failed: Failed
++        state-skipped: Skipped
++
+     order-route-form:
+         toggle: Toggle Multiple Dropoff's
+         optimize: Optimize Route
