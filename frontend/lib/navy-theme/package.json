@@ -1,0 +1,15 @@
+{
+    "name": "navy-theme",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Recolours the console's blue/sky accent palette to navy in every built stylesheet.",
+    "keywords": [
+        "ember-addon"
+    ],
+    "ember-addon": {
+        "before": [
+            "broccoli-asset-rev",
+            "ember-cli-sri"
+        ]
+    }
+}

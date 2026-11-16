@@ -28,7 +28,8 @@
     },
     "ember-addon": {
         "paths": [
-            "lib/sum_logistics-extensions-generator"
+            "lib/sum_logistics-extensions-generator",
+            "lib/navy-theme"
         ]
     },
     "dependencies": {
