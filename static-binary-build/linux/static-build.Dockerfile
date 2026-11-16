@@ -14,7 +14,6 @@ WORKDIR /go/src/app/dist/app
 ENV APP_ENV=production
 ENV APP_DEBUG=false
 ENV BROADCAST_DRIVER=socketcluster
-ENV OSRM_HOST="https://router.project-osrm.org"
 ENV REGISTRY_PREINSTALLED_EXTENSIONS=true
 
 # Optional: Ensure writable storage

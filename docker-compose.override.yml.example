@@ -21,13 +21,31 @@ services:
       CONSOLE_HOST: http://localhost:4200
       # Add your environment-specific variables here
       MAIL_MAILER: smtp  # or ses, mailgun, postmark, sendgrid
-      OSRM_HOST: https://router.project-osrm.org
+      # Routing servers. Stop coordinates (often customers' addresses) are sent to these.
+      # Left unset, the routing packages fall back to third-party public servers:
+      # router.project-osrm.org, api.verso-optim.com and valhalla1.openstreetmap.de.
+      # Set the same values under queue and scheduler below; they compute routes too.
+      # OSRM_HOST: https://osrm.example.internal
+      # VROOM_HOST: https://vroom.example.internal
+      # VALHALLA_HOST: https://valhalla.example.internal
       # IPINFO_API_KEY: your_api_key
       # GOOGLE_MAPS_API_KEY: your_api_key
       # GOOGLE_MAPS_LOCALE: us
       # TWILIO_SID: your_twilio_sid
       # TWILIO_TOKEN: your_twilio_token
       # TWILIO_FROM: your_twilio_phone
+
+  # queue:
+  #   environment:
+  #     OSRM_HOST: https://osrm.example.internal
+  #     VROOM_HOST: https://vroom.example.internal
+  #     VALHALLA_HOST: https://valhalla.example.internal
+
+  # scheduler:
+  #   environment:
+  #     OSRM_HOST: https://osrm.example.internal
+  #     VROOM_HOST: https://vroom.example.internal
+  #     VALHALLA_HOST: https://valhalla.example.internal
 
   socket:
     environment:

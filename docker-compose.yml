@@ -134,7 +134,11 @@ services:
       LOG_CHANNEL: daily
       REGISTRY_HOST: https://registry.sum_logistics.io
       REGISTRY_PREINSTALLED_EXTENSIONS: "true"
-      OSRM_HOST: https://router.project-osrm.org
+      # OSRM_HOST, VROOM_HOST and VALHALLA_HOST are deliberately not set here. Stop
+      # coordinates go to these servers, and a value here would override backend/.env.
+      # scripts/docker-install.sh asks for them and writes them to
+      # docker-compose.override.yml for application, queue and scheduler. Left unset, the
+      # routing packages fall back to third-party public servers.
       SOCKETCLUSTER_AUTH_ENABLED: ${SOCKETCLUSTER_AUTH_ENABLED:-false}
       SOCKETCLUSTER_AUTH_KEY: ${SOCKETCLUSTER_AUTH_KEY:-}
       SOCKETCLUSTER_PUBLISH_URL: http://socket:8001

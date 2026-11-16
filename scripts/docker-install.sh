@@ -143,6 +143,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 cd "$PROJECT_ROOT"
 
+OVERRIDE_FILE="docker-compose.override.yml"
+
 ###############################################################################
 # STEP 3 — Database configuration
 ###############################################################################
@@ -346,6 +348,160 @@ else
 fi
 
 ###############################################################################
+# STEP 7b — Routing engines
+###############################################################################
+section "Routing Engines"
+
+# Route lines, distances/ETAs and route optimization send stop coordinates (often
+# customers' home addresses) to a routing server. When a host is unset, the routing
+# packages fall back to third-party public servers, so an install that never sets one
+# sends that data off the machine without anyone being told. The hosts given here are
+# written to docker-compose.override.yml for the application, queue and scheduler
+# services (all three run routing code), and OSRM's to the console config as well.
+# Nothing is written for a host left unset: the containers then get no variable at all,
+# so backend/.env or the package default applies rather than an empty string.
+
+# routing_default ENGINE → the third-party server the routing packages fall back to
+routing_default() {
+  case "$1" in
+    OSRM)     echo "https://router.project-osrm.org" ;;
+    VROOM)    echo "https://api.verso-optim.com/vrp/v1" ;;
+    VALHALLA) echo "https://valhalla1.openstreetmap.de" ;;
+  esac
+}
+
+# Public servers run by third parties: the defaults above and their siblings.
+THIRD_PARTY_ROUTING_HOSTS="router.project-osrm.org routing.openstreetmap.de api.verso-optim.com valhalla1.openstreetmap.de valhalla2.openstreetmap.de"
+
+# url_host URL → lower-cased host of URL, without scheme, credentials, port or path
+url_host() {
+  local h="${1#*://}"
+  h="${h%%[/?#]*}"
+  h="${h##*@}"
+  case "$h" in
+    \[*) h="${h%%]*}]" ;;   # [IPv6]:port → [IPv6]
+    *)   h="${h%%:*}" ;;
+  esac
+  lower "$h"
+}
+
+is_third_party_routing_host() {
+  local host known
+  host="$(url_host "$1")"
+  for known in $THIRD_PARTY_ROUTING_HOSTS; do
+    [[ "$host" == "$known" ]] && return 0
+  done
+  return 1
+}
+
+# valid_routing_url URL → an http(s) URL that is safe to write unescaped into the YAML
+# override, the console JSON and the console .env files
+valid_routing_url() {
+  case "$1" in
+    http://?*|https://?*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *[[:space:]]*|*\"*|*\'*|*\\*|*\$*|*\`*) return 1 ;;
+  esac
+  return 0
+}
+
+# read_override_value FILE KEY → the first "KEY: value" in FILE, unquoted ("" if absent).
+# A re-run (including --non-interactive) keeps the routing hosts an earlier run wrote
+# instead of silently dropping them back to the third-party defaults.
+read_override_value() {
+  local file="$1" key="$2" line
+  [[ -f "$file" ]] || return 0
+  line="$(grep -E "^[[:space:]]+${key}:" "$file" | head -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  line="${line#*:}"
+  line="${line%%[[:space:]]#*}"
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  line="${line%\"}"; line="${line#\"}"
+  line="${line%\'}"; line="${line#\'}"
+  printf '%s' "$line"
+}
+
+# ask_routing_host VAR LABEL → prompts for a server URL and stores it in VAR.
+# Enter keeps the current value; "-" clears it.
+ask_routing_host() {
+  local var="$1" label="$2" current input
+  current="${!var}"
+  while true; do
+    if [[ -n "$current" ]]; then
+      read -rp "  ${label} URL [${current}] (- to clear): " input
+    else
+      read -rp "  ${label} URL [not set]: " input
+    fi
+    case "$input" in
+      "") input="$current" ;;
+      -)  input="" ;;
+    esac
+    if [[ -z "$input" ]] || valid_routing_url "$input"; then
+      printf -v "$var" '%s' "$input"
+      return 0
+    fi
+    warn "Enter a full URL starting with http:// or https:// (no spaces or quotes), or leave it blank."
+  done
+}
+
+# Exported OSRM_HOST / VROOM_HOST / VALHALLA_HOST win; otherwise keep what the existing
+# override sets.
+ROUTING_OSRM="${OSRM_HOST:-$(read_override_value "$OVERRIDE_FILE" OSRM_HOST)}"
+ROUTING_VROOM="${VROOM_HOST:-$(read_override_value "$OVERRIDE_FILE" VROOM_HOST)}"
+ROUTING_VALHALLA="${VALHALLA_HOST:-$(read_override_value "$OVERRIDE_FILE" VALHALLA_HOST)}"
+
+if ! $NON_INTERACTIVE; then
+  echo "  Route lines, distances/ETAs and route optimization send stop coordinates (often"
+  echo "  customers' addresses) to a routing server. A server left blank falls back to a"
+  echo "  third-party public server, which then receives those coordinates:"
+  echo "    OSRM      $(routing_default OSRM)"
+  echo "    VROOM     $(routing_default VROOM)"
+  echo "    Valhalla  $(routing_default VALHALLA)"
+  echo "  The OSRM and FOSSGIS (Valhalla) demo servers' usage policies rule out production traffic."
+  ask_routing_host ROUTING_OSRM     "OSRM server"
+  ask_routing_host ROUTING_VROOM    "VROOM server"
+  ask_routing_host ROUTING_VALHALLA "Valhalla server"
+fi
+
+for routing_pair in "OSRM_HOST=$ROUTING_OSRM" "VROOM_HOST=$ROUTING_VROOM" "VALHALLA_HOST=$ROUTING_VALHALLA"; do
+  routing_value="${routing_pair#*=}"
+  if [[ -n "$routing_value" ]] && ! valid_routing_url "$routing_value"; then
+    error "${routing_pair%%=*} must be a full URL starting with http:// or https:// (no spaces or quotes), got: ${routing_value}"
+    exit 1
+  fi
+done
+
+ROUTING_OWN=(); ROUTING_THIRD_PARTY=()
+for engine in OSRM VROOM VALHALLA; do
+  case "$engine" in
+    OSRM)     value="$ROUTING_OSRM";     label="OSRM" ;;
+    VROOM)    value="$ROUTING_VROOM";    label="VROOM" ;;
+    VALHALLA) value="$ROUTING_VALHALLA"; label="Valhalla" ;;
+  esac
+  if [[ -z "$value" ]]; then
+    ROUTING_THIRD_PARTY+=("${label}: not set, falls back to $(routing_default "$engine")")
+  elif is_third_party_routing_host "$value"; then
+    ROUTING_THIRD_PARTY+=("${label}: ${value} (third-party public server)")
+  else
+    ROUTING_OWN+=("${label}: ${value}")
+  fi
+done
+
+if [[ ${#ROUTING_OWN[@]} -gt 0 ]]; then
+  for item in "${ROUTING_OWN[@]}"; do success "$item"; done
+fi
+if [[ ${#ROUTING_THIRD_PARTY[@]} -gt 0 ]]; then
+  warn "Stop coordinates for these engines will be sent to servers outside this install:"
+  for item in "${ROUTING_THIRD_PARTY[@]}"; do warn "  $item"; done
+  [[ "$ENVIRONMENT" == "production" ]] \
+    && warn "The OSRM and FOSSGIS demo servers do not allow production traffic; set your own servers before going live."
+  info "Re-run this installer, or export OSRM_HOST / VROOM_HOST / VALHALLA_HOST and run it with --non-interactive, to use your own."
+fi
+
+###############################################################################
 # STEP 8 — Generate APP_KEY
 ###############################################################################
 section "Generating Application Key"
@@ -438,7 +594,12 @@ success "API publisher origin: $SOCKETCLUSTER_ORIGIN_VALUE"
 ###############################################################################
 section "Writing docker-compose.override.yml"
 
-OVERRIDE_FILE="docker-compose.override.yml"
+# Routing hosts that are set; unset ones are left out entirely (see STEP 7b).
+routing_env_lines() {
+  env_line "OSRM_HOST"     "$ROUTING_OSRM"
+  env_line "VROOM_HOST"    "$ROUTING_VROOM"
+  env_line "VALHALLA_HOST" "$ROUTING_VALHALLA"
+}
 
 # Back up any existing override
 if [[ -f "$OVERRIDE_FILE" ]]; then
@@ -497,6 +658,17 @@ YAML_HEADER
   env_line "TWILIO_SID"          "$TWILIO_SID"
   env_line "TWILIO_TOKEN"        "$TWILIO_TOKEN"
   env_line "TWILIO_FROM"         "$TWILIO_FROM"
+  # Routing
+  routing_env_lines
+
+  # Queue jobs and scheduled commands compute routes too, and neither container reads
+  # backend/.env, so they need the same hosts as the application.
+  if [[ -n "${ROUTING_OSRM}${ROUTING_VROOM}${ROUTING_VALHALLA}" ]]; then
+    for routing_service in queue scheduler; do
+      printf '\n  %s:\n    environment:\n' "$routing_service"
+      routing_env_lines
+    done
+  fi
 
   cat <<YAML_SOCKET
 
@@ -531,14 +703,21 @@ section "Updating Console Configuration"
 CONFIG_DIR="frontend"
 mkdir -p "$CONFIG_DIR"
 
-OSRM_HOST="https://router.project-osrm.org"
+# The console calls OSRM from the browser. With no OSRM_HOST here it uses the default
+# built into the console, the third-party server STEP 7b warned about.
+CONSOLE_OSRM_JSON=""; CONSOLE_OSRM_ENV=""
+if [[ -n "$ROUTING_OSRM" ]]; then
+  CONSOLE_OSRM_JSON=",
+  \"OSRM_HOST\": \"${ROUTING_OSRM}\""
+  CONSOLE_OSRM_ENV="OSRM_HOST=${ROUTING_OSRM}"
+fi
 
 cat > "${CONFIG_DIR}/sum_logistics.config.json.tmp" <<JSON
 {
   "API_HOST": "${SCHEME_API}://${HOST}:8000",
   "SOCKETCLUSTER_HOST": "${HOST}",
   "SOCKETCLUSTER_PORT": "38000",
-  "SOCKETCLUSTER_SECURE": "${SC_SECURE}"
+  "SOCKETCLUSTER_SECURE": "${SC_SECURE}"${CONSOLE_OSRM_JSON}
 }
 JSON
 mv -f "${CONFIG_DIR}/sum_logistics.config.json.tmp" "${CONFIG_DIR}/sum_logistics.config.json"
@@ -553,7 +732,7 @@ SOCKETCLUSTER_PATH=/socketcluster/
 SOCKETCLUSTER_HOST=${HOST}
 SOCKETCLUSTER_SECURE=false
 SOCKETCLUSTER_PORT=38000
-OSRM_HOST=${OSRM_HOST}
+${CONSOLE_OSRM_ENV}
 ENV_DEV
 
 cat > "${ENV_DIR}/.env.production" <<ENV_PROD
@@ -564,7 +743,7 @@ SOCKETCLUSTER_PATH=/socketcluster/
 SOCKETCLUSTER_HOST=${HOST}
 SOCKETCLUSTER_SECURE=true
 SOCKETCLUSTER_PORT=38000
-OSRM_HOST=${OSRM_HOST}
+${CONSOLE_OSRM_ENV}
 ENV_PROD
 
 success "Console configuration files updated"
@@ -685,6 +864,13 @@ $CONFIG_3P \
   && CONFIGURED_ITEMS+=("Third-party APIs (Maps, Geolocation, SMS)") \
   || SKIPPED_ITEMS+=("Third-party APIs (Maps, Geolocation, SMS)")
 
+if [[ ${#ROUTING_OWN[@]} -gt 0 ]]; then
+  for item in "${ROUTING_OWN[@]}"; do CONFIGURED_ITEMS+=("Routing: $item"); done
+fi
+if [[ ${#ROUTING_THIRD_PARTY[@]} -gt 0 ]]; then
+  for item in "${ROUTING_THIRD_PARTY[@]}"; do SKIPPED_ITEMS+=("Routing: $item"); done
+fi
+
 echo
 printf '%0.s═' {1..60}; echo
 echo -e "  ${BOLD}🏁  Summit_logistics Installation Complete${RESET}"
@@ -712,6 +898,11 @@ if [[ ${#SKIPPED_ITEMS[@]} -gt 0 ]]; then
   echo "      3. To configure skipped options, edit"
   echo "         docker-compose.override.yml and run:"
   echo "         docker compose up -d"
+fi
+if [[ ${#ROUTING_THIRD_PARTY[@]} -gt 0 ]]; then
+  echo "      ⚠  Routing requests still go to third-party servers. Re-run"
+  echo "         this installer with your own OSRM / VROOM / Valhalla"
+  echo "         servers to keep stop coordinates in-house."
 fi
 echo
 echo "  📄  Config saved to: docker-compose.override.yml"
