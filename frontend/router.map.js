@@ -68,6 +68,7 @@ Router.map(function () {
             this.route('oauth-apps');
             this.route('platform-api-token');
             this.route('api-consumers');
+            this.route('api-status');
             this.route('rate-limits');
             this.route('sms-guard');
             this.route('database-backups');

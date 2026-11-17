@@ -1,0 +1,171 @@
+<EmberWormhole @to="next-view-section-subheader-actions">
+    <div class="flex items-center gap-2">
+        <div class="inline-flex overflow-hidden rounded-md border border-gray-300 shadow-sm dark:border-gray-700" role="group" aria-label="Show" data-test-filters>
+            <button
+                type="button"
+                class="border-r border-gray-300 px-2 py-1 text-xs font-medium dark:border-gray-700
+                    {{if (eq this.filter 'all') 'bg-blue-600 text-white' 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}}"
+                aria-pressed={{if (eq this.filter "all") "true" "false"}}
+                {{on "click" (fn this.setFilter "all")}}
+                data-test-filter="all"
+            >All</button>
+            <button
+                type="button"
+                class="px-2 py-1 text-xs font-medium
+                    {{if (eq this.filter 'problems') 'bg-blue-600 text-white' 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}}"
+                aria-pressed={{if (eq this.filter "problems") "true" "false"}}
+                {{on "click" (fn this.setFilter "problems")}}
+                data-test-filter="problems"
+            >Problems</button>
+        </div>
+        {{#if this.runChecks.isRunning}}
+            <Button @size="xs" @icon="stop" @text="Stop" @onClick={{this.stop}} data-test-stop />
+        {{else}}
+            {{#if this.problemChecks.length}}
+                <Button @size="xs" @icon="rotate-right" @text="Re-run problems" @onClick={{this.runProblems}} data-test-run-problems />
+            {{/if}}
+            <Button @type="primary" @size="xs" @icon="play" @text="Run all checks" @onClick={{this.runAll}} data-test-run-all />
+        {{/if}}
+    </div>
+</EmberWormhole>
+
+<div class="space-y-3 p-4" ...attributes>
+    <div class="text-xs text-gray-600 dark:text-gray-400" data-test-intro>
+        Each check sends one read-only
+        <span class="font-mono">GET</span>
+        request with your session to
+        <span class="font-mono font-semibold text-gray-800 dark:text-gray-200" data-test-host>{{this.host}}</span>
+        and reports the HTTP status and response time. Nothing is created or changed.
+        {{#if this.paceLabel}}
+            <span data-test-pace>{{this.paceLabel}}</span>
+        {{/if}}
+        {{#if this.lastRunLabel}}
+            <span class="whitespace-nowrap" data-test-last-run>Last run: {{this.lastRunLabel}}.</span>
+        {{/if}}
+    </div>
+
+    <div
+        class="grid grid-cols-2 divide-gray-200 overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm sm:grid-cols-5 sm:divide-x dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800"
+        data-test-stats
+    >
+        {{#each this.stats as |stat|}}
+            <div class="px-3 py-2" data-test-stat={{stat.key}}>
+                <div class="truncate text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{stat.label}}</div>
+                <div class="mt-0.5 flex items-baseline gap-1.5">
+                    <span class="text-lg font-bold leading-6 tabular-nums {{or stat.toneClass 'text-gray-900 dark:text-gray-100'}}" data-test-stat-value>{{stat.value}}</span>
+                    {{#if stat.hint}}
+                        <span class="truncate text-[11px] text-gray-500 dark:text-gray-400">{{stat.hint}}</span>
+                    {{/if}}
+                </div>
+            </div>
+        {{/each}}
+    </div>
+
+    {{#if this.progress}}
+        <div class="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800" data-test-progress>
+            <div class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
+                <span>Checking {{this.progress.done}} of {{this.progress.total}}</span>
+                {{#if this.progress.eta}}
+                    <span>about {{this.progress.eta}} left</span>
+                {{/if}}
+            </div>
+            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div class="h-full rounded-full bg-blue-500 transition-all" style={{html-safe (concat "width: " this.progress.percent "%")}}></div>
+            </div>
+        </div>
+    {{/if}}
+
+    <div class="rounded-md border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800" data-test-custom>
+        <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Check any endpoint</div>
+        <form class="mt-1.5 flex items-center gap-2" {{on "submit" this.submitCustom}}>
+            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">GET {{this.host}}/</span>
+            <Input
+                @type="text"
+                @value={{this.customPath}}
+                class="form-input form-input-sm flex-1 font-mono"
+                placeholder="int/v1/orders?limit=1"
+                aria-label="Endpoint path"
+                data-test-custom-path
+            />
+            <Button @size="xs" @icon="paper-plane" @text="Send" @buttonType="submit" @isLoading={{this.runCustom.isRunning}} data-test-custom-send />
+        </form>
+        {{#if this.customResult}}
+            <div class="mt-2 space-y-1.5" data-test-custom-result data-test-state={{this.customResult.state}}>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold {{this.customResult.stateClass}}">{{this.customResult.label}}</span>
+                    {{#if this.customResult.path}}
+                        <span class="font-mono text-gray-600 dark:text-gray-300">GET {{this.customResult.path}}</span>
+                    {{/if}}
+                    {{#if this.customResult.httpStatus}}
+                        <span class="font-mono tabular-nums text-gray-600 dark:text-gray-300">HTTP {{this.customResult.httpStatus}}</span>
+                    {{/if}}
+                    {{#if this.customResult.duration}}
+                        <span class="tabular-nums text-gray-500 dark:text-gray-400">{{this.customResult.duration}}</span>
+                    {{/if}}
+                    {{#if this.customResult.size}}
+                        <span class="tabular-nums text-gray-500 dark:text-gray-400">{{this.customResult.size}}</span>
+                    {{/if}}
+                </div>
+                {{#if this.customResult.message}}
+                    <div class="text-xs {{if (eq this.customResult.state 'failed') 'text-red-600 dark:text-red-300' 'text-yellow-700 dark:text-yellow-200'}}" data-test-custom-message>
+                        {{this.customResult.message}}
+                    </div>
+                {{/if}}
+                {{#if this.customResult.preview}}
+                    <pre
+                        class="max-h-64 overflow-auto rounded border border-gray-200 bg-gray-50 p-2 font-mono text-[11px] leading-4 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        data-test-custom-preview
+                    >{{this.customResult.preview}}</pre>
+                {{/if}}
+            </div>
+        {{/if}}
+    </div>
+
+    {{#each this.groups as |group|}}
+        <div class="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800" data-test-group={{group.id}}>
+            <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{group.label}}</div>
+                    <div class="truncate text-xs text-gray-500 dark:text-gray-400">{{group.description}}</div>
+                </div>
+                <div class="flex flex-shrink-0 items-center gap-2">
+                    <span class="text-xs font-medium {{or group.headline.toneClass 'text-gray-500 dark:text-gray-400'}}" data-test-group-headline>{{group.headline.text}}</span>
+                    <Button @size="xs" @icon="play" @text="Run" @disabled={{this.runChecks.isRunning}} @onClick={{fn this.runGroup group}} data-test-run-group={{group.id}} />
+                </div>
+            </div>
+            <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                {{#each group.rows as |row|}}
+                    <li class="grid grid-cols-12 items-start gap-2 px-3 py-2" data-test-check={{row.id}} data-test-state={{row.result.state}}>
+                        <div class="col-span-12 sm:col-span-2">
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold {{row.stateClass}}" data-test-check-label>
+                                {{#if row.isBusy}}
+                                    <FaIcon @icon="circle-notch" @spin={{true}} class="mr-1" />
+                                {{/if}}
+                                {{row.result.label}}
+                            </span>
+                        </div>
+                        <div class="col-span-12 min-w-0 sm:col-span-6">
+                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{row.label}}</div>
+                            <div class="truncate font-mono text-xs text-gray-500 dark:text-gray-400">GET {{row.id}}</div>
+                            {{#if row.result.message}}
+                                <div class="mt-0.5 text-xs {{row.messageClass}}" data-test-check-message>{{row.result.message}}</div>
+                            {{/if}}
+                        </div>
+                        <div class="col-span-4 font-mono text-xs tabular-nums text-gray-700 sm:col-span-1 dark:text-gray-300" data-test-check-status>
+                            {{#if row.result.httpStatus}}{{row.result.httpStatus}}{{/if}}
+                        </div>
+                        <div class="col-span-4 text-xs tabular-nums text-gray-700 sm:col-span-2 dark:text-gray-300" data-test-check-time>{{row.duration}}</div>
+                        <div class="col-span-4 text-xs tabular-nums text-gray-500 sm:col-span-1 dark:text-gray-400">{{row.size}}</div>
+                    </li>
+                {{/each}}
+            </ul>
+        </div>
+    {{else}}
+        <div
+            class="rounded-md border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+            data-test-no-problems
+        >
+            No warnings or failures in the last run.
+        </div>
+    {{/each}}
+</div>

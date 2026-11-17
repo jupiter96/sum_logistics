@@ -9,6 +9,7 @@ const { remapCss } = require('./remap');
 
 // broccoli-plugin is not a direct dependency of the console. Load the copy that
 // broccoli-merge-trees is built on, which also resolves under pnpm's strict layout.
+// eslint-disable-next-line n/no-missing-require -- resolved from broccoli-merge-trees, not the console
 const Plugin = require(require.resolve('broccoli-plugin', { paths: [path.dirname(require.resolve('broccoli-merge-trees'))] }));
 
 function listFiles(root, directory = '') {

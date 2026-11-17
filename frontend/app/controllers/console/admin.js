@@ -83,7 +83,7 @@ export default class ConsoleAdminController extends Controller {
     get apiTrafficNavigationItem() {
         return {
             label: 'API Traffic',
-            description: 'Monitor API consumers and configure rate limiting.',
+            description: 'Monitor API consumers, check endpoint health and configure rate limiting.',
             icon: 'gauge-high',
             keywords: ['api', 'traffic', 'rate limit', 'throttle', 'requests'],
             children: [
@@ -107,6 +107,13 @@ export default class ConsoleAdminController extends Controller {
                     icon: 'comment-sms',
                     route: 'console.admin.sms-guard',
                     keywords: ['sms', 'text message', 'pumping', 'toll fraud', 'budget', 'pause', 'ledger', 'twilio'],
+                },
+                {
+                    label: 'API Status',
+                    description: 'Run read-only checks against every module’s API endpoints and see which ones are failing.',
+                    icon: 'heart-pulse',
+                    route: 'console.admin.api-status',
+                    keywords: ['api', 'status', 'health', 'endpoints', 'test', 'check', 'uptime', 'errors'],
                 },
             ],
         };

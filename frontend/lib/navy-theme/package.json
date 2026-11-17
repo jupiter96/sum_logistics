@@ -11,5 +11,9 @@
             "broccoli-asset-rev",
             "ember-cli-sri"
         ]
+    },
+    "dependencies": {
+        "broccoli-funnel": "^3.0.8",
+        "broccoli-merge-trees": "^4.2.0"
     }
 }
