@@ -4,6 +4,24 @@ import { action } from '@ember/object';
 import { inject as service } from '@ember/service';
 
 /**
+ * Number of digits in a sent or authenticator app code.
+ *
+ * @type {Number}
+ */
+export const OTP_LENGTH = 6;
+
+/**
+ * The digits of a typed or pasted code: SMS apps and password managers often paste
+ * "123 456" or "123-456".
+ *
+ * @param {*} value
+ * @return {String}
+ */
+export function normalizeOtp(value) {
+    return String(value ?? '').replace(/\D/g, '');
+}
+
+/**
  * Controller responsible for handling two-factor authentication.
  * @class AuthTwoFaController
  * @extends Controller
@@ -128,6 +146,16 @@ export default class AuthTwoFaController extends Controller {
     @tracked useRecoveryCode = false;
 
     /**
+     * Whether a code is being checked. A second check while one is in flight would hit a
+     * session the first one already closed, and every wrong check uses up an attempt.
+     *
+     * @property {Boolean} isVerifying
+     * @tracked
+     * @default false
+     */
+    @tracked isVerifying = false;
+
+    /**
      * Query parameters for the controller.
      *
      * @property {Array} queryParams
@@ -167,18 +195,31 @@ export default class AuthTwoFaController extends Controller {
             event.preventDefault();
         }
 
+        if (this.isVerifying) {
+            return;
+        }
+
+        const { token, clientToken, identity } = this;
+
+        if (!clientToken) {
+            this.notifications.error(this.intl.t('auth.two-fa.verify-code.invalid-session-error-notification'));
+            return;
+        }
+
+        // A recovery code is sent as typed; a sent or app code is its 6 digits. An incomplete
+        // code is not sent at all: the server would count it as a wrong attempt.
+        const code = this.useRecoveryCode ? String(this.verificationCode ?? '').trim() : normalizeOtp(this.verificationCode);
+        if (!code || (!this.useRecoveryCode && code.length !== OTP_LENGTH)) {
+            this.notifications.warning(this.intl.t('auth.two-fa.verify-code.enter-code-notification', { length: OTP_LENGTH }));
+            return;
+        }
+
+        this.isVerifying = true;
         try {
-            const { token, verificationCode, clientToken, identity } = this;
-
-            if (!clientToken) {
-                this.notifications.error(this.intl.t('auth.two-fa.verify-code.invalid-session-error-notification'));
-                return;
-            }
-
             // Call the backend API to verify the entered verification code
             const { authToken } = await this.fetch.post('two-fa/verify', {
                 token,
-                code: verificationCode,
+                code,
                 clientToken,
                 identity,
             });
@@ -186,10 +227,9 @@ export default class AuthTwoFaController extends Controller {
             // If verification is successful, transition to the desired route
             this.notifications.success(this.intl.t('auth.two-fa.verify-code.verification-successful-notification'));
 
-            // authenticate user
-            return this.session.authenticate('authenticator:sum_logistics', { authToken, identity }).then(() => {
-                return this.router.transitionTo('console');
-            });
+            // authenticate user; the code stays "being checked" until the session exists
+            await this.session.authenticate('authenticator:sum_logistics', { authToken, identity });
+            return this.router.transitionTo('console');
         } catch (error) {
             if (error?.message?.includes('Verification code has expired')) {
                 this.notifications.info(this.intl.t('auth.two-fa.verify-code.verification-code-expired-notification'));
@@ -200,6 +240,8 @@ export default class AuthTwoFaController extends Controller {
             } else {
                 this.notifications.error(this.intl.t('auth.two-fa.verify-code.verification-code-failed-notification'));
             }
+        } finally {
+            this.isVerifying = false;
         }
     }
 
@@ -230,7 +272,9 @@ export default class AuthTwoFaController extends Controller {
                 this.clientToken = clientToken;
                 this.session.store.persist({ identity, token, clientToken, method });
                 this.twoFactorSessionExpiresAfter = this.getExpirationDateFromClientToken(clientToken);
-                this.countdownReady = true;
+                // Without a readable expiry the countdown would end at once and call a
+                // valid code expired, so it only runs when there is one.
+                this.countdownReady = this.twoFactorSessionExpiresAfter !== null;
                 this.isCodeExpired = false;
                 this.notifications.success(this.intl.t('auth.two-fa.resend-code.verification-code-resent-notification'));
             } else {
@@ -282,6 +326,24 @@ export default class AuthTwoFaController extends Controller {
     }
 
     /**
+     * Keeps the code in step with every keystroke, so the Verify button submits what is in
+     * the field. A pasted code with a separator ("123 456") is longer than the field's
+     * 6 characters and never completes it, so it is checked here once it has 6 digits.
+     *
+     * @param {string} otpValue - The current value of the OTP field.
+     * @returns {void}
+     * @action
+     */
+    @action updateOtp(otpValue) {
+        this.verificationCode = otpValue;
+
+        const value = String(otpValue ?? '');
+        if (value.length !== OTP_LENGTH && normalizeOtp(value).length === OTP_LENGTH) {
+            this.verifyCode();
+        }
+    }
+
+    /**
      * Converts a base64 encoded client token to a Date representing the expiration date.
      *
      * @method getExpirationDateFromClientToken
@@ -320,16 +382,28 @@ export default class AuthTwoFaController extends Controller {
     }
 
     /**
-     * Converts a UTC date-time string to client time zone.
+     * Reads the expiry the server put in a client token as the moment it names.
+     *
+     * The server writes it in UTC without a zone ("2026-11-19 10:00:00", Carbon's default
+     * format). Browsers disagree on such a string: Chrome reads it as local time, Safari
+     * returns an Invalid Date, which ended the countdown at once and called a valid code
+     * expired. It is parsed as UTC here instead. A stamp that names its zone ("…Z",
+     * "+09:00") is read as written.
      *
      * @method convertUtcToClientTime
      * @param {string} utcDateTimeString - UTC date-time string.
-     * @returns {Date} - Date in client time zone.
+     * @returns {Date} - The moment, or an Invalid Date when the stamp cannot be read.
      */
     convertUtcToClientTime(utcDateTimeString) {
-        const utcDate = new Date(utcDateTimeString);
-        const clientTimezoneOffset = new Date().getTimezoneOffset();
-        const clientDate = new Date(utcDate.getTime() - clientTimezoneOffset * 60 * 1000);
-        return clientDate;
+        const value = String(utcDateTimeString ?? '').trim();
+        const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?$/);
+
+        if (match) {
+            const [, year, month, day, hours, minutes, seconds = '0', fraction = '0'] = match;
+            const milliseconds = Math.round(Number(`0.${fraction}`) * 1000);
+            return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes), Number(seconds), milliseconds));
+        }
+
+        return new Date(value);
     }
 }

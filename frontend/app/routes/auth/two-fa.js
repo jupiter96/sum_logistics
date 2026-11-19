@@ -69,8 +69,10 @@ export default class AuthTwoFaRoute extends Route {
                 controller.identity = identity;
                 controller.method = method;
                 controller.twoFactorSessionExpiresAfter = controller.getExpirationDateFromClientToken(clientToken);
-                // Codes from an authenticator app are not sent, so they do not expire
-                controller.countdownReady = !controller.isAuthenticatorApp;
+                // Codes from an authenticator app are not sent, so they do not expire. A sent
+                // code without a readable expiry gets no countdown: one with no end date ends
+                // at once and would call a valid code expired.
+                controller.countdownReady = !controller.isAuthenticatorApp && Boolean(controller.twoFactorSessionExpiresAfter);
             })
             .catch(() => {});
     }

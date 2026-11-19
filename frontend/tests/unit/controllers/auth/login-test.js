@@ -104,6 +104,11 @@ module('Unit | Controller | auth/login', function (hooks) {
         this.controller.identity = 'jane@example.org';
         await this.submit();
         assert.strictEqual(this.notifications.warnings.length, 2, 'a missing password is refused');
+        assert.deepEqual(
+            this.notifications.warnings,
+            [this.controller.intl.t('auth.login.no-identity-notification'), this.controller.intl.t('auth.login.no-password-notification')],
+            'each refusal names what is missing'
+        );
 
         assert.deepEqual(this.posted, [], 'nothing is submitted');
         assert.deepEqual(this.authenticateCalls, [], 'nothing is submitted');

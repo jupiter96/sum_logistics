@@ -1,0 +1,153 @@
+diff --git a/config/sms.php b/config/sms.php
+index 4f9316a..9fd763b 100644
+--- a/config/sms.php
++++ b/config/sms.php
+@@ -16,6 +16,19 @@ return [
+ 
+     'default_provider' => env('SMS_DEFAULT_PROVIDER', 'twilio'),
+ 
++    /*
++    |--------------------------------------------------------------------------
++    | Two-Factor Sign-In Provider
++    |--------------------------------------------------------------------------
++    |
++    | The provider that texts two-factor sign-in codes, whatever the routing
++    | rules and the default provider above say. Twilio by default; set it to
++    | an empty value to route sign-in codes like any other message.
++    |
++    */
++
++    'two_fa_provider' => env('TWO_FA_SMS_PROVIDER', 'twilio'),
++
+     /*
+     |--------------------------------------------------------------------------
+     | SMS Provider Routing Rules
+diff --git a/src/Support/TwoFactorAuth.php b/src/Support/TwoFactorAuth.php
+index 02e8efe..a129878 100644
+--- a/src/Support/TwoFactorAuth.php
++++ b/src/Support/TwoFactorAuth.php
+@@ -24,6 +24,12 @@ class TwoFactorAuth
+      */
+     public const SESSION_TTL = 600;
+ 
++    /**
++     * Seconds a sent (SMS or email) 2FA code stays valid. The client token, and so the
++     * countdown the console shows, ends at the same moment. Long enough for a slow SMS.
++     */
++    public const CODE_TTL = 300;
++
+     /**
+      * Failed code attempts allowed per 2FA session before it is invalidated.
+      */
+@@ -345,7 +351,7 @@ class TwoFactorAuth
+      *
+      * @throws \Exception if no phone number or email is available, or an invalid method is selected in settings
+      */
+-    public static function sendVerificationCode(User $user, int $expiresAfter = 61): VerificationCode
++    public static function sendVerificationCode(User $user, int $expiresAfter = self::CODE_TTL): VerificationCode
+     {
+         $twoFaSettings = static::getTwoFaSettingsForUser($user);
+         $method        = $twoFaSettings->getValue('method', 'email');
+@@ -368,10 +374,14 @@ class TwoFactorAuth
+                 throw new \Exception('No phone number to send 2FA code to.');
+             }
+ 
+-            // create verification code
++            // create verification code. `expireAfter` is the key VerificationCode reads:
++            // under `expiresAfter` the code silently stayed valid for an hour. Sign-in codes
++            // go through the provider in `sms.two_fa_provider` (Twilio by default) whatever
++            // the routing rules and default provider say; empty restores normal routing.
+             return VerificationCode::generateSmsVerificationFor($user, '2fa', [
+                 'messageCallback' => $messageCallback,
+-                'expiresAfter'    => $expiresAfter,
++                'expireAfter'     => $expiresAfter,
++                'provider'        => config('sms.two_fa_provider') ?: null,
+             ]);
+         }
+ 
+@@ -387,7 +397,7 @@ class TwoFactorAuth
+                 'content' => function ($verificationCode) {
+                     return 'Your two-factor authentication code is: ' . $verificationCode->code;
+                 },
+-                'expiresAfter' => $expiresAfter,
++                'expireAfter' => $expiresAfter,
+             ]);
+         }
+ 
+@@ -617,14 +627,17 @@ class TwoFactorAuth
+      * Create a client session token for a verification code.
+      *
+      * @param VerificationCode $verificationCode the verification code
+-     * @param int              $expiresAfter     the expiration time for the client session token in seconds
++     * @param int              $expiresAfter     seconds until the token expires, used only when the code has no expiry of its own
+      *
+      * @return string the client session token
+      */
+-    public static function createClientSessionToken(VerificationCode $verificationCode, int $expiresAfter = 61): string
++    public static function createClientSessionToken(VerificationCode $verificationCode, int $expiresAfter = self::CODE_TTL): string
+     {
+-        $expiresAfter = Carbon::now()->addSeconds($expiresAfter);
+-        $clientToken  = base64_encode($expiresAfter . '|' . $verificationCode->uuid . '|' . Str::random());
++        // The token carries the moment the code itself expires, so the console's countdown
++        // ends when the server stops accepting the code. Written in UTC without a zone,
++        // the format the console reads.
++        $expiresAt   = $verificationCode->expires_at ? Carbon::parse($verificationCode->expires_at) : Carbon::now()->addSeconds($expiresAfter);
++        $clientToken = base64_encode($expiresAt->copy()->utc()->format('Y-m-d H:i:s') . '|' . $verificationCode->uuid . '|' . Str::random());
+ 
+         return $clientToken;
+     }
+diff --git a/tests/Unit/Support/TwoFactorAuthTest.php b/tests/Unit/Support/TwoFactorAuthTest.php
+index 77a5163..c312cdd 100644
+--- a/tests/Unit/Support/TwoFactorAuthTest.php
++++ b/tests/Unit/Support/TwoFactorAuthTest.php
+@@ -882,3 +882,50 @@ test('two factor auth rejects a pending authenticator challenge after its user i
+ 
+     expect(fn () => TwoFactorAuth::verifyCode('123456', $token, $clientToken))->toThrow(Exception::class, 'Verification code is invalid.');
+ });
++
++test('two factor auth sent codes expire with the client token the console counts down', function () {
++    [$user] = two_factor_auth_fixtures();
++    $twilio = new TwoFactorAuthTwilioFake();
++
++    app()->instance('twilio', $twilio);
++    Facade::clearResolvedInstance('twilio');
++    config(['sms.default_provider' => SmsService::PROVIDER_TWILIO, 'sms.routing_rules' => []]);
++    Carbon::setTestNow(Carbon::parse('2026-11-19 10:00:00', 'UTC'));
++    $expiresAt = Carbon::now()->addSeconds(TwoFactorAuth::CODE_TTL);
++
++    foreach (['sms', 'email'] as $method) {
++        TwoFactorAuth::saveTwoFaSettingsForUser($user, ['enabled' => true, 'method' => $method]);
++
++        $verificationCode = TwoFactorAuth::sendVerificationCode($user);
++        $clientToken      = TwoFactorAuth::createClientSessionToken($verificationCode);
++
++        expect(Carbon::parse($verificationCode->expires_at)->equalTo($expiresAt))->toBeTrue("the {$method} code lasts CODE_TTL seconds, not an hour")
++            ->and(explode('|', base64_decode($clientToken))[0])->toBe('2026-11-19 10:05:00');
++    }
++});
++
++test('two factor auth texts sign-in codes through twilio whatever the sms routing says', function () {
++    [$user] = two_factor_auth_fixtures();
++    $twilio = new TwoFactorAuthTwilioFake();
++
++    app()->instance('twilio', $twilio);
++    Facade::clearResolvedInstance('twilio');
++    config([
++        'sms.default_provider' => SmsService::PROVIDER_VONAGE,
++        'sms.routing_rules'    => ['+1' => SmsService::PROVIDER_MESSAGEBIRD],
++        'sms.two_fa_provider'  => SmsService::PROVIDER_TWILIO,
++    ]);
++    TwoFactorAuth::saveTwoFaSettingsForUser($user, ['enabled' => true, 'method' => 'sms']);
++
++    $verificationCode = TwoFactorAuth::sendVerificationCode($user);
++
++    expect($twilio->messages)->toHaveCount(1)
++        ->and($twilio->messages[0]['to'])->toBe($user->phone)
++        ->and($twilio->messages[0]['message'])->toContain($verificationCode->code);
++
++    config(['sms.two_fa_provider' => '', 'sms.default_provider' => SmsService::PROVIDER_TWILIO, 'sms.routing_rules' => []]);
++    Carbon::setTestNow(Carbon::now()->addMinute());
++    TwoFactorAuth::sendVerificationCode($user);
++
++    expect($twilio->messages)->toHaveCount(2, 'an empty setting falls back to normal routing');
++});

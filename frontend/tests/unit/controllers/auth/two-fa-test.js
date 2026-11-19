@@ -64,6 +64,7 @@ module('Unit | Controller | auth/two-fa | verification flow', function (hooks) {
             errors = [];
             successes = [];
             infos = [];
+            warnings = [];
             error(message) {
                 this.errors.push(message);
             }
@@ -72,6 +73,9 @@ module('Unit | Controller | auth/two-fa | verification flow', function (hooks) {
             }
             info(message) {
                 this.infos.push(message);
+            }
+            warning(message) {
+                this.warnings.push(message);
             }
         }
         class SessionStub extends Service {
@@ -139,6 +143,7 @@ module('Unit | Controller | auth/two-fa | verification flow', function (hooks) {
         this.postRejectsWith = new Error('Verification code has expired');
         const controller = this.build();
         controller.clientToken = 'client-tok';
+        controller.verificationCode = '123456';
 
         await controller.verifyCode();
 
@@ -151,17 +156,20 @@ module('Unit | Controller | auth/two-fa | verification flow', function (hooks) {
         this.postRejectsWith = new Error('invalid code');
         const controller = this.build();
         controller.clientToken = 'client-tok';
+        controller.verificationCode = '123456';
 
         await controller.verifyCode();
 
         assert.strictEqual(this.notifications().errors.length, 1);
         assert.strictEqual(this.notifications().infos.length, 0);
+        assert.false(controller.isVerifying, 'the code can be corrected and checked again');
     });
 
     test('too many wrong codes sends the user back to sign in again', async function (assert) {
         this.postRejectsWith = new Error('Too many failed verification attempts. Please sign in again.');
         const controller = this.build();
         controller.clientToken = 'client-tok';
+        controller.verificationCode = '123456';
 
         await controller.verifyCode();
 
@@ -284,14 +292,98 @@ module('Unit | Controller | auth/two-fa | verification flow', function (hooks) {
         assert.deepEqual(this.transitions, ['auth.login']);
     });
 
-    test('convertUtcToClientTime shifts a UTC stamp by the local offset', function (assert) {
+    test('convertUtcToClientTime reads the server stamp as UTC in every browser', function (assert) {
         const controller = this.build();
-        const utc = '2026-03-01T12:00:00Z';
+        const moment = Date.UTC(2026, 2, 1, 12, 0, 0);
 
-        const converted = controller.convertUtcToClientTime(utc);
+        assert.strictEqual(controller.convertUtcToClientTime('2026-03-01 12:00:00').getTime(), moment, "the server's zone-less format is UTC");
+        assert.strictEqual(controller.convertUtcToClientTime('2026-03-01T12:00:00').getTime(), moment, 'with a T as well');
+        assert.strictEqual(controller.convertUtcToClientTime('2026-03-01 12:00:00.250').getTime(), moment + 250, 'fractions of a second are kept');
+        assert.strictEqual(controller.convertUtcToClientTime('2026-03-01T12:00:00Z').getTime(), moment, 'a stamp in UTC is not shifted again');
+        assert.strictEqual(controller.convertUtcToClientTime('2026-03-01T21:00:00+09:00').getTime(), moment, 'a stamp with an offset is read as written');
+        assert.true(Number.isNaN(controller.convertUtcToClientTime('not a date').getTime()), 'an unreadable stamp is an Invalid Date');
+    });
 
-        assert.true(converted instanceof Date);
-        assert.strictEqual(converted.getTime(), new Date(utc).getTime() - new Date().getTimezoneOffset() * 60 * 1000);
+    test('an incomplete code is not sent, so it does not use up an attempt', async function (assert) {
+        const controller = this.build();
+        controller.clientToken = 'client-tok';
+
+        controller.verificationCode = '12345';
+        await controller.verifyCode();
+        controller.verificationCode = '';
+        await controller.verifyCode();
+
+        assert.deepEqual(this.posted, [], 'nothing reaches the server');
+        assert.deepEqual(this.notifications().warnings, [
+            controller.intl.t('auth.two-fa.verify-code.enter-code-notification', { length: 6 }),
+            controller.intl.t('auth.two-fa.verify-code.enter-code-notification', { length: 6 }),
+        ]);
+    });
+
+    test('a pasted code with spaces or dashes is sent as its digits', async function (assert) {
+        const controller = this.build();
+        controller.token = 'tok';
+        controller.clientToken = 'client-tok';
+        controller.identity = 'jane@example.org';
+        controller.verificationCode = ' 123-456 ';
+
+        await controller.verifyCode();
+
+        assert.strictEqual(this.posted[0].payload.code, '123456');
+    });
+
+    test('a second check while one is in flight is ignored', async function (assert) {
+        let release;
+        const context = this;
+        this.owner.lookup('service:fetch').post = (path, payload) => {
+            context.posted.push({ path, payload });
+            return new Promise((resolve) => (release = () => resolve({ authToken: 'auth-token' })));
+        };
+        const controller = this.build();
+        controller.clientToken = 'client-tok';
+        controller.verificationCode = '123456';
+
+        const first = controller.verifyCode();
+        assert.true(controller.isVerifying, 'the first check is running');
+        await controller.verifyCode();
+        assert.strictEqual(this.posted.length, 1, 'the auto-submit and a click do not both reach the server');
+
+        release();
+        await first;
+        assert.false(controller.isVerifying);
+        assert.deepEqual(this.transitions, ['console']);
+        assert.deepEqual(this.notifications().errors, [], 'no stray "verification failed" after a successful sign-in');
+    });
+
+    test('updateOtp keeps the code in step with the field and checks a pasted code', async function (assert) {
+        const controller = this.build();
+        controller.clientToken = 'client-tok';
+
+        controller.updateOtp('123');
+        assert.strictEqual(controller.verificationCode, '123', 'the Verify button submits what is in the field');
+        await settled();
+        assert.deepEqual(this.posted, [], 'a partial code is not checked');
+
+        controller.updateOtp('123456');
+        await settled();
+        assert.deepEqual(this.posted, [], 'six characters are left to the field, which completes itself');
+
+        controller.updateOtp('123 456');
+        await settled();
+        assert.strictEqual(this.posted.at(-1).payload.code, '123456', 'a pasted code with a space is checked');
+    });
+
+    test('a resent code whose expiry cannot be read does not start a countdown', async function (assert) {
+        this.postResponse = { clientToken: btoa('not-a-timestamp|session'), method: 'sms' };
+        const controller = this.build();
+        controller.identity = 'jane@example.org';
+        controller.token = 'tok';
+
+        await controller.resendCode();
+
+        assert.strictEqual(controller.twoFactorSessionExpiresAfter, null);
+        assert.false(controller.countdownReady, 'a countdown with no end would call the new code expired at once');
+        assert.strictEqual(this.notifications().successes.length, 1, 'the code was still sent');
     });
 });
 

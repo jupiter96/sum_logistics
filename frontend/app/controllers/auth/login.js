@@ -97,7 +97,7 @@ export default class AuthLoginController extends Controller {
 
         // If no password error
         if (!password) {
-            return this.notifications.warning(this.intl.t('auth.login.no-identity-notification'));
+            return this.notifications.warning(this.intl.t('auth.login.no-password-notification'));
         }
 
         // start loader

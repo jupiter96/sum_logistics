@@ -208,7 +208,7 @@ module('Unit | Route | auth/two-fa', function (hooks) {
         assert.strictEqual(controller.identity, undefined);
         assert.strictEqual(controller.clientToken, undefined);
         assert.strictEqual(controller.twoFactorSessionExpiresAfter, null);
-        assert.true(controller.countdownReady);
+        assert.false(controller.countdownReady, 'with no expiry the countdown would end at once and call the code expired');
     });
 
     test('setupController swallows a failed restore and leaves the countdown off', async function (assert) {

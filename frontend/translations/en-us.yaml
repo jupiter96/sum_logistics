@@ -583,6 +583,7 @@ auth:
       verification-code-expired-notification: Verification code has expired. Please request a new one.
       verification-code-failed-notification: Verification failed. Please try again.
       too-many-attempts-notification: Too many incorrect codes. Please sign in again.
+      enter-code-notification: Enter the {length}-digit code you received.
       authenticator-title: Open your authenticator app
       authenticator-subtitle: Enter the 6-digit code your authenticator app shows for this account.
       recovery-code-title: Enter a recovery code
