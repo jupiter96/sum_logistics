@@ -249,12 +249,22 @@ module('Unit | Controller | auth/login', function (hooks) {
         assert.deepEqual(this.transitions.at(-1), ['auth.forgot-password']);
     });
 
-    test('forgotPassword carries a known email across to that controller', async function (assert) {
-        this.controller.email = 'jane@example.org';
+    test('forgotPassword carries a typed email across to that controller', async function (assert) {
+        this.controller.identity = ' jane@example.org ';
 
         await this.controller.forgotPassword();
 
         assert.strictEqual(this.controller.forgotPasswordController.email, 'jane@example.org');
+    });
+
+    test('forgotPassword does not carry a phone number or username, which get no email', async function (assert) {
+        for (const identity of ['+15555551000', 'jane', '', null]) {
+            this.controller.identity = identity;
+
+            await this.controller.forgotPassword();
+
+            assert.strictEqual(this.controller.forgotPasswordController.email, undefined, String(identity));
+        }
     });
 
     test('slowConnection reports the slow connection message', function (assert) {
@@ -324,6 +334,30 @@ module('Unit | Controller | auth/login', function (hooks) {
         controller.continueWithProvider({ id: 'google' });
 
         assert.deepEqual(started, [['google', { intent: 'login', returnTo: null }]]);
+    });
+
+    test('the form is locked while the browser leaves, and unlocked on coming back', async function (assert) {
+        const controller = this.owner.lookup('controller:auth/login');
+        const started = [];
+
+        controller.oauth.startAuthorization = (id) => started.push(id);
+        assert.false(controller.isBusy);
+
+        controller.continueWithProvider({ id: 'facebook', label: 'Facebook' });
+        assert.strictEqual(controller.redirectingTo, 'facebook', 'that button shows the spinner');
+        assert.true(controller.isBusy);
+        assert.false(controller.isLoading, 'the sign-in button does not');
+
+        controller.continueWithProvider({ id: 'google', label: 'Google' });
+        assert.deepEqual(started, ['facebook'], 'one provider at a time');
+
+        // What the browser fires when Back restores the page as it was left.
+        window.dispatchEvent(new Event('pageshow'));
+        assert.false(controller.isBusy);
+
+        controller.continueWithProvider({ id: 'google', label: 'Google' });
+        assert.deepEqual(started, ['facebook', 'google']);
+        window.dispatchEvent(new Event('pageshow'));
     });
 
     test('it ignores a provider click while a sign-in is already running', async function (assert) {

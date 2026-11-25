@@ -170,7 +170,7 @@ The script expects Docker, Docker Compose v2, git, and OpenSSL to be available. 
 
 It runs on Linux, on macOS's stock `/bin/bash` 3.2, and on Windows in Git Bash. It also creates an empty `backend/.env` (bind-mounted by `docker-compose.yml`) when one does not exist.
 
-It also asks for your OSRM, VROOM and Valhalla servers. Routing requests carry stop coordinates, and a host left unset falls back to a third-party public server (`router.project-osrm.org`, `api.verso-optim.com`, `valhalla1.openstreetmap.de`). The installer warns about each such host and lists it in the summary. Hosts that are set are written to the `application`, `queue` and `scheduler` services in `docker-compose.override.yml`. The OSRM host is also written to the console configuration. With `--non-interactive`, the hosts come from exported `OSRM_HOST`, `VROOM_HOST` and `VALHALLA_HOST`, or from an existing `docker-compose.override.yml`.
+It also asks for your OSRM, VROOM and Valhalla servers. Routing requests carry stop coordinates, and a host left unset falls back to a third-party public server (`router.project-osrm.org`, `api.verso-optim.com`, `valhalla1.openstreetmap.de`). The installer warns about each such host and lists it in the summary. Hosts that are set are written to the `application`, `queue` and `scheduler` services in `docker-compose.override.yml`. Those three services get the same environment, database and mail settings included: the `queue` worker is what sends password reset and notification emails. The OSRM host is also written to the console configuration. With `--non-interactive`, the hosts come from exported `OSRM_HOST`, `VROOM_HOST` and `VALHALLA_HOST`, or from an existing `docker-compose.override.yml`.
 
 ## Validation
 

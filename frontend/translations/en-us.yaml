@@ -598,16 +598,22 @@ auth:
 
   forgot-password:
     success-message: Check your email to continue!
-    is-sent:  
-      title: Almost Done!
-      message: <strong>Check your email!</strong><br> We've sent you a magic link to your email which will allow you to reset your password. The link expires in 15 minutes.
+    enter-email: Enter your email address first.
+    back-to-login: Back to sign in
+    change-email: Use a different email address
+    resend: Send the link again
+    resend-in: Send the link again in {time}
+    is-sent:
+      title: Check your email
+      subtitle: If an account uses this address, a link to reset its password is on its way.
+      expires: The link works once and expires in 15 minutes.
+      check-spam: Nothing after a few minutes? Check your spam folder. A new link can be requested every 5 minutes.
     not-sent:
       title: Forgot your password?
-      message: <strong>Don't worry, we've got your back.</strong><br> Enter the email you use to login to {appName} and we will send you a secure link to reset your password.
+      subtitle: Enter the email you use to sign in to {appName} and we will send you a link to reset your password.
     form:
       email-label: Your email address
-      submit-button: OK, Send me a magic link!
-      nevermind-button: Nevermind
+      submit-button: Send reset link
 
   login:
     title: Sign in to your account
@@ -665,20 +671,31 @@ auth:
 
   reset-password:
     success-message: Your password has been reset! Login to continue.
-    invalid-verification-code: This reset password link is invalid or expired.
     title: Reset your password
+    subtitle: Choose a password you do not use anywhere else.
+    invalid-link:
+      title: This link no longer works
+      subtitle: Reset links work once and expire after 15 minutes. Request a new one to continue.
+      request-new: Request a new link
+    requirements:
+      length: At least 8 characters
+      mixed-case: Upper and lower case letters
+      number: A number
+      symbol: 'A symbol, such as ! or #'
+      match: Both passwords match
+      met: done
+      not-met: still needed
     form:
       code:
         label: Your reset code
         help-text: The verification code you received in your email.
       password:
         label: New Password
-        help-text: Enter a password at-least 6 characters to continue.
       confirm-password:
         label: Confirm new Password
-        help-text: Enter a password at-least 6 characters to continue.
+      show-password: Show
+      hide-password: Hide
       submit-button: Reset Password
-      back-button: Back
 
   confirm-email-change:
     success-message: Your email address has been updated.

@@ -25,6 +25,14 @@ module('Integration | Component | auth/oauth-provider-button', function (hooks) 
         assert.dom('button').hasText('Google');
     });
 
+    test('a spinner takes the place of the logo while the browser leaves', async function (assert) {
+        await render(hbs`<Auth::OauthProviderButton @provider={{this.provider}} @isLoading={{true}} />`);
+
+        assert.dom('button').isDisabled();
+        assert.dom('.btn-loading-icon-wrapper').exists();
+        assert.dom('.oauth-provider-logo').doesNotExist();
+    });
+
     test('clicking calls onClick with the provider, and is safe without one', async function (assert) {
         this.clicked = [];
         this.onClick = (provider) => this.clicked.push(provider);

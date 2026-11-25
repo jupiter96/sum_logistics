@@ -6,26 +6,33 @@ import removeBootLoader from '../../utils/remove-boot-loader';
 export default class AuthResetPasswordRoute extends Route {
     @service store;
     @service fetch;
-    @service router;
-    @service notifications;
-    @service intl;
 
     @action activate() {
         removeBootLoader();
     }
 
     async model({ id }) {
-        return this.fetch.get('auth/validate-verification', { id });
+        // `for`: without it, a link id issued for anything else would count as valid here.
+        return this.fetch.get('auth/validate-verification', { id, for: 'password_reset' });
     }
 
     async setupController(controller, model) {
         super.setupController(...arguments);
-        if (model.is_valid === false) {
-            this.notifications.warning(this.intl.t('auth.reset-password.invalid-verification-code'));
-            return this.router.transitionTo('auth');
+
+        controller.isLinkInvalid = model.is_valid === false;
+        controller.hasCodeFromLink = Boolean(controller.code);
+
+        if (controller.isLinkInvalid) {
+            return;
         }
 
         // set brand to controller
         controller.brand = await this.store.findRecord('brand', 1);
+    }
+
+    resetController(controller, isExiting) {
+        if (isExiting) {
+            controller.reset();
+        }
     }
 }

@@ -9,6 +9,7 @@ import { setupTest } from '@summit_logistics/console/tests/helpers';
  */
 const ROUTES_THAT_CLEAR_THE_BOOT_LOADER = [
     'route:auth/login',
+    'route:auth/forgot-password',
     'route:auth/reset-password',
     'route:auth/confirm-email-change',
     'route:auth/verify-contact',

@@ -23,6 +23,14 @@ module('Integration | Component | auth/oauth-provider-logo', function (hooks) {
         assert.deepEqual(fills, ['#F25022', '#7FBA00', '#00A4EF', '#FFB900']);
     });
 
+    test('facebook gets its blue disc, with a white f in either theme', async function (assert) {
+        await render(hbs`<Auth::OauthProviderLogo @provider="facebook" @icon="facebook" />`);
+
+        assert.dom('.oauth-provider-logo-facebook path').hasAttribute('fill', '#0866FF');
+        assert.dom('.oauth-provider-logo-facebook circle').hasAttribute('fill', '#FFFFFF');
+        assert.dom('.svg-inline--fa').doesNotExist();
+    });
+
     test('apple, github and any later provider use their brand icon', async function (assert) {
         await render(hbs`<Auth::OauthProviderLogo @provider="github" @icon="github" />`);
 

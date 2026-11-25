@@ -2,17 +2,10 @@ import { module, test } from 'qunit';
 import { setupTest } from '@summit_logistics/console/tests/helpers';
 import Service from '@ember/service';
 
-class NotificationsStub extends Service {
-    warnings = [];
-    warning(message) {
-        this.warnings.push(message);
-    }
-}
-
 module('Unit | Route | auth/reset-password', function (hooks) {
     setupTest(hooks);
 
-    test('model validates the verification code by id', async function (assert) {
+    test('model validates the link as a password reset link', async function (assert) {
         class FetchStub extends Service {
             get(path, params) {
                 return Promise.resolve({ path, params });
@@ -24,41 +17,52 @@ module('Unit | Route | auth/reset-password', function (hooks) {
         const model = await route.model({ id: 'code_1' });
 
         assert.strictEqual(model.path, 'auth/validate-verification');
-        assert.deepEqual(model.params, { id: 'code_1' });
+        assert.deepEqual(model.params, { id: 'code_1', for: 'password_reset' }, 'a link issued for something else is not valid here');
     });
 
-    test('setupController warns and redirects when the verification code is invalid', async function (assert) {
-        this.owner.register('service:notifications', NotificationsStub);
-
+    test('setupController says so when the link is no longer valid', async function (assert) {
         const route = this.owner.lookup('route:auth/reset-password');
-        let transitioned;
-        route.router.transitionTo = (name) => {
-            transitioned = name;
-            return name;
-        };
+        const controller = { code: '123456' };
 
-        const controller = {};
         await route.setupController(controller, { is_valid: false });
 
-        assert.strictEqual(transitioned, 'auth');
-        assert.strictEqual(route.notifications.warnings.length, 1, 'the user is warned');
-        assert.notOk(controller.brand, 'no brand is loaded for an invalid code');
+        assert.true(controller.isLinkInvalid);
+        assert.notOk(controller.brand, 'no brand is loaded for an invalid link');
     });
 
-    test('setupController loads the brand when the verification code is valid', async function (assert) {
-        this.owner.register('service:notifications', NotificationsStub);
-
+    test('setupController loads the brand when the link is valid', async function (assert) {
         const route = this.owner.lookup('route:auth/reset-password');
         route.store.findRecord = (type, id) => Promise.resolve(`${type}:${id}`);
-
-        let transitioned;
-        route.router.transitionTo = (name) => (transitioned = name);
 
         const controller = {};
         await route.setupController(controller, { is_valid: true });
 
+        assert.false(controller.isLinkInvalid);
         assert.strictEqual(controller.brand, 'brand:1');
-        assert.strictEqual(transitioned, undefined, 'no redirect for a valid code');
-        assert.strictEqual(route.notifications.warnings.length, 0);
+    });
+
+    test('setupController asks for the code only when the link did not carry it', async function (assert) {
+        const route = this.owner.lookup('route:auth/reset-password');
+        route.store.findRecord = () => Promise.resolve();
+
+        const withCode = { code: '123456' };
+        await route.setupController(withCode, { is_valid: true });
+        assert.true(withCode.hasCodeFromLink);
+
+        const withoutCode = {};
+        await route.setupController(withoutCode, { is_valid: true });
+        assert.false(withoutCode.hasCodeFromLink);
+    });
+
+    test('leaving the page forgets the passwords', function (assert) {
+        const route = this.owner.lookup('route:auth/reset-password');
+        let resets = 0;
+        const controller = { reset: () => resets++ };
+
+        route.resetController(controller, false);
+        assert.strictEqual(resets, 0);
+
+        route.resetController(controller, true);
+        assert.strictEqual(resets, 1);
     });
 });

@@ -34,9 +34,29 @@ services:
       # TWILIO_SID: your_twilio_sid
       # TWILIO_TOKEN: your_twilio_token
       # TWILIO_FROM: your_twilio_phone
+      # Sign-in with Google and Facebook. Easier to set in the console under
+      # Admin > Auth Config, which checks the credentials and takes precedence over these.
+      # Register https://<your API host>/int/v1/auth/oauth/<google or facebook>/callback as
+      # the redirect URI with each provider.
+      # OAUTH_GOOGLE_ENABLED: "true"
+      # OAUTH_GOOGLE_CLIENT_ID: your_client_id
+      # OAUTH_GOOGLE_CLIENT_SECRET: your_client_secret
+      # OAUTH_FACEBOOK_ENABLED: "true"
+      # OAUTH_FACEBOOK_CLIENT_ID: your_app_id
+      # OAUTH_FACEBOOK_CLIENT_SECRET: your_app_secret
 
+  # The queue worker sends every email (password resets, notifications). It does not read
+  # backend/.env, so give it the same database and mail settings as the application.
   # queue:
   #   environment:
+  #     DATABASE_URL: mysql://user:password@database/sum_logistics
+  #     CONSOLE_HOST: http://localhost:4200
+  #     MAIL_MAILER: smtp
+  #     MAIL_HOST: smtp.example.com
+  #     MAIL_PORT: "587"
+  #     MAIL_USERNAME: your_username
+  #     MAIL_PASSWORD: your_password
+  #     MAIL_FROM_ADDRESS: hello@example.com
   #     OSRM_HOST: https://osrm.example.internal
   #     VROOM_HOST: https://vroom.example.internal
   #     VALHALLA_HOST: https://valhalla.example.internal

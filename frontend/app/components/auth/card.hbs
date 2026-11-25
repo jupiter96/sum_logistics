@@ -1,0 +1,28 @@
+{{! The panel the sign-in pages share: logo, an optional icon, title and subtitle.
+
+      `blue-*` is the console's accent: lib/navy-theme turns it into navy when building, so
+      these pages follow the theme.
+
+      @title
+      @subtitle
+      @icon
+      @brand }}
+<div class="rounded-xl border border-gray-200 border-t-4 border-t-blue-600 bg-white px-6 py-8 shadow-lg sm:px-8 dark:border-gray-700 dark:border-t-blue-400 dark:bg-gray-800" ...attributes>
+    <LinkTo @route="console" class="flex items-center justify-center">
+        <LogoIcon @brand={{@brand}} @size="12" class="rounded-md" />
+    </LinkTo>
+    {{#if @icon}}
+        <div class="mx-auto mt-6 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900 dark:text-blue-200">
+            <FaIcon @icon={{@icon}} @size="lg" />
+        </div>
+    {{/if}}
+    <h2 class="mt-4 text-center text-2xl font-extrabold leading-8 text-gray-900 dark:text-white">
+        {{@title}}
+    </h2>
+    {{#if @subtitle}}
+        <p class="mt-2 text-center text-sm leading-5 text-gray-600 dark:text-gray-300">
+            {{@subtitle}}
+        </p>
+    {{/if}}
+    {{yield}}
+</div>

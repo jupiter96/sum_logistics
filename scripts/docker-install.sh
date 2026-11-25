@@ -594,30 +594,9 @@ success "API publisher origin: $SOCKETCLUSTER_ORIGIN_VALUE"
 ###############################################################################
 section "Writing docker-compose.override.yml"
 
-# Routing hosts that are set; unset ones are left out entirely (see STEP 7b).
-routing_env_lines() {
-  env_line "OSRM_HOST"     "$ROUTING_OSRM"
-  env_line "VROOM_HOST"    "$ROUTING_VROOM"
-  env_line "VALHALLA_HOST" "$ROUTING_VALHALLA"
-}
-
-# Back up any existing override
-if [[ -f "$OVERRIDE_FILE" ]]; then
-  BACKUP="${OVERRIDE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
-  cp "$OVERRIDE_FILE" "$BACKUP"
-  info "Existing override backed up to $BACKUP"
-fi
-
-# Build the file using a temp file for atomicity
-OVERRIDE_TMP="${OVERRIDE_FILE}.tmp.$$"
-
-{
-  cat <<YAML_HEADER
-services:
-  application:
-    environment:
-YAML_HEADER
-
+# Everything the API image needs at runtime. Empty values are left out entirely, the
+# routing hosts included (see STEP 7b).
+application_env_lines() {
   env_line "APP_KEY"           "$APP_KEY"
   env_line "APP_NAME"          "$APP_NAME"
   env_line "APP_URL"           "${SCHEME_API}://${HOST}:8000"
@@ -659,16 +638,32 @@ YAML_HEADER
   env_line "TWILIO_TOKEN"        "$TWILIO_TOKEN"
   env_line "TWILIO_FROM"         "$TWILIO_FROM"
   # Routing
-  routing_env_lines
+  env_line "OSRM_HOST"     "$ROUTING_OSRM"
+  env_line "VROOM_HOST"    "$ROUTING_VROOM"
+  env_line "VALHALLA_HOST" "$ROUTING_VALHALLA"
+}
 
-  # Queue jobs and scheduled commands compute routes too, and neither container reads
-  # backend/.env, so they need the same hosts as the application.
-  if [[ -n "${ROUTING_OSRM}${ROUTING_VROOM}${ROUTING_VALHALLA}" ]]; then
-    for routing_service in queue scheduler; do
-      printf '\n  %s:\n    environment:\n' "$routing_service"
-      routing_env_lines
-    done
-  fi
+# Back up any existing override
+if [[ -f "$OVERRIDE_FILE" ]]; then
+  BACKUP="${OVERRIDE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  cp "$OVERRIDE_FILE" "$BACKUP"
+  info "Existing override backed up to $BACKUP"
+fi
+
+# Build the file using a temp file for atomicity
+OVERRIDE_TMP="${OVERRIDE_FILE}.tmp.$$"
+
+{
+  echo "services:"
+
+  # The queue worker sends the emails (password resets, notifications) and computes routes;
+  # the scheduler runs commands that do the same. Neither reads backend/.env, so without the
+  # application's database, mail and routing settings their work fails and no email is sent.
+  for app_service in application queue scheduler; do
+    [[ "$app_service" != "application" ]] && echo
+    printf '  %s:\n    environment:\n' "$app_service"
+    application_env_lines
+  done
 
   cat <<YAML_SOCKET
 

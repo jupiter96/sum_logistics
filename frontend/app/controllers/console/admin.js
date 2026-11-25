@@ -146,10 +146,10 @@ export default class ConsoleAdminController extends Controller {
             children: [
                 {
                     label: this.intl.t('console.admin.menu.oauth'),
-                    description: 'Configure sign-in with Google, Microsoft, GitHub and Apple.',
+                    description: 'Configure sign-in with Google, Facebook, Microsoft, GitHub and Apple.',
                     icon: 'right-to-bracket',
                     route: 'console.admin.oauth-settings',
-                    keywords: ['oauth', 'sso', 'sign in', 'login', 'google', 'microsoft', 'github', 'apple'],
+                    keywords: ['oauth', 'sso', 'sign in', 'login', 'google', 'facebook', 'microsoft', 'github', 'apple'],
                 },
                 {
                     label: this.intl.t('console.admin.menu.oauth-apps'),

@@ -8,17 +8,21 @@
       @provider  { id, label, icon } as the API's provider list returns it
       @text      the button text; defaults to the provider's label
       @disabled
+      @isLoading a spinner in place of the logo, while the browser leaves for the provider
       @onClick   called with the provider --}}
 <Button
     @wrapperClass="btn-block oauth-provider-button oauth-provider-{{@provider.id}}"
     @disabled={{@disabled}}
+    @isLoading={{@isLoading}}
     @onClick={{fn this.onClick @provider}}
     data-test-oauth-provider={{@provider.id}}
     ...attributes
 >
     {{!-- In Summit_logistics's icon slot, so the logo sits at the far left like other buttons. --}}
-    <span class="btn-icon-wrapper">
-        <Auth::OauthProviderLogo @provider={{@provider.id}} @icon={{@provider.icon}} />
-    </span>
+    {{#unless @isLoading}}
+        <span class="btn-icon-wrapper">
+            <Auth::OauthProviderLogo @provider={{@provider.id}} @icon={{@provider.icon}} />
+        </span>
+    {{/unless}}
     <span>{{or @text @provider.label}}</span>
 </Button>

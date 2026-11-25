@@ -176,24 +176,29 @@ body[data-theme='dark'] .console-dashboard-title h1 {
  * Sign-in provider buttons: each provider's logo and light-mode colours on Summit_logistics's
  * own button shape, size, shadow and icon position.
  *
- *   Light  Google and Microsoft: white with Summit_logistics's usual button border, the
- *          full-colour logo (Google forbids a single-colour "G"; Microsoft forbids
- *          altering its logo). Apple: black (Apple HIG). GitHub: #24292F — its mark
- *          is only ever shown in black or white.
+ *   Light  Google, Facebook and Microsoft: white with the full-colour logo (Google forbids
+ *          a single-colour "G"; Microsoft forbids altering its logo), and the theme's
+ *          accent for the border, hover and focus. Apple: black (Apple HIG). GitHub:
+ *          #24292F — its mark is only ever shown in black or white.
  *   Dark   Every provider on Summit_logistics's gray-900, so the page reads as one set of
  *          buttons. Apple and GitHub marks turn white with the text; the Google "G"
  *          keeps a white disc, since Google requires it on white.
+ *
+ * The blue-* values below are the theme's accent: lib/navy-theme turns them into the navy
+ * of the same step when building. Provider logos keep their own colours, which are not
+ * among the ones it replaces.
  *
  * Only these providers are listed, so one added later keeps the default button.
  * `body` in each selector outranks ember-ui's `body[data-theme='dark'] .btn.btn-default`
  * rules, hover included.
  */
 .oauth-provider-google,
+.oauth-provider-facebook,
 .oauth-provider-microsoft {
     --oauth-bg: #fff;
-    --oauth-bg-hover: #f3f4f6; /* gray-100 */
-    --oauth-border: #d1d5db; /* gray-300, Summit_logistics's default button border */
-    --oauth-border-hover: #9ca3af; /* gray-400 */
+    --oauth-bg-hover: #eff6ff; /* blue-50 */
+    --oauth-border: #bfdbfe; /* blue-200 */
+    --oauth-border-hover: #3b82f6; /* blue-500 */
     --oauth-text: #1f2937; /* gray-800 */
 }
 
@@ -213,15 +218,15 @@ body[data-theme='dark'] .console-dashboard-title h1 {
     --oauth-text: #fff;
 }
 
-body[data-theme='dark'] :is(.oauth-provider-google, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) {
+body[data-theme='dark'] :is(.oauth-provider-google, .oauth-provider-facebook, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) {
     --oauth-bg: #111827; /* gray-900 */
     --oauth-bg-hover: #1f2937; /* gray-800 */
     --oauth-border: #374151; /* gray-700 */
-    --oauth-border-hover: #4b5563; /* gray-600 */
+    --oauth-border-hover: #60a5fa; /* blue-400 */
     --oauth-text: #f3f4f6; /* gray-100 */
 }
 
-body :is(.oauth-provider-google, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default {
+body :is(.oauth-provider-google, .oauth-provider-facebook, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default {
     background-color: var(--oauth-bg);
     border: 1px solid var(--oauth-border);
     color: var(--oauth-text);
@@ -230,12 +235,16 @@ body :is(.oauth-provider-google, .oauth-provider-microsoft, .oauth-provider-appl
         border-color 150ms ease;
 }
 
-body :is(.oauth-provider-google, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default:focus {
+body :is(.oauth-provider-google, .oauth-provider-facebook, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default:focus {
     border-color: var(--oauth-border-hover);
     color: var(--oauth-text);
 }
 
-body :is(.oauth-provider-google, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default:hover:not(:disabled) {
+body :is(.oauth-provider-google, .oauth-provider-facebook, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default:focus-visible {
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 35%); /* blue-500 */
+}
+
+body :is(.oauth-provider-google, .oauth-provider-facebook, .oauth-provider-microsoft, .oauth-provider-apple, .oauth-provider-github) > button.btn.btn-default:hover:not(:disabled) {
     background-color: var(--oauth-bg-hover);
     border-color: var(--oauth-border-hover);
     color: var(--oauth-text);

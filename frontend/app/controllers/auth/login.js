@@ -78,6 +78,35 @@ export default class AuthLoginController extends Controller {
     @tracked token;
 
     /**
+     * Id of the provider the browser is being sent to.
+     *
+     * @var {String|null}
+     * @memberof AuthLoginController
+     */
+    @tracked redirectingTo = null;
+
+    /**
+     * Whether a sign-in of either kind is under way, so the form takes no input.
+     *
+     * @var {Boolean}
+     */
+    get isBusy() {
+        return this.isLoading || this.redirectingTo !== null;
+    }
+
+    /**
+     * The typed identity when it looks like an email; people can sign in with a phone
+     * number or username too.
+     *
+     * @var {String|null}
+     */
+    get identityEmail() {
+        const identity = String(this.identity ?? '').trim();
+
+        return identity.includes('@') ? identity : null;
+    }
+
+    /**
      * Action to login user.
      *
      * @param {Event} event
@@ -177,11 +206,15 @@ export default class AuthLoginController extends Controller {
      * @return {void}
      */
     @action continueWithProvider(provider) {
-        if (this.isLoading || !provider?.id) {
+        if (this.isBusy || !provider?.id) {
             return;
         }
 
-        this.set('isLoading', true);
+        this.redirectingTo = provider.id;
+
+        // Coming Back from the provider can restore this page exactly as it was left,
+        // which would keep the form locked.
+        window.addEventListener('pageshow', this.returnedFromProvider, { once: true });
 
         // The server validates this path and echoes it back through the callback; it
         // never reaches the redirect host.
@@ -194,6 +227,13 @@ export default class AuthLoginController extends Controller {
     }
 
     /**
+     * Unlock the form after coming back from a provider without signing in.
+     */
+    @action returnedFromProvider() {
+        this.redirectingTo = null;
+    }
+
+    /**
      * Transition user to onboarding screen
      */
     @action transitionToOnboard() {
@@ -201,12 +241,14 @@ export default class AuthLoginController extends Controller {
     }
 
     /**
-     * Transition to forgot password screen, if email is set - set it.
+     * Transition to forgot password screen, carrying over an email typed here.
      */
     @action forgotPassword() {
+        const email = this.identityEmail;
+
         return this.router.transitionTo('auth.forgot-password').then(() => {
-            if (this.email) {
-                this.forgotPasswordController.email = this.email;
+            if (email) {
+                this.forgotPasswordController.email = email;
             }
         });
     }

@@ -10,4 +10,16 @@ module('Unit | Route | auth/forgot-password', function (hooks) {
         assert.deepEqual(Object.keys(route.queryParams), ['email']);
         assert.false(route.queryParams.email.refreshModel);
     });
+
+    test('leaving the page clears the form, a change of email in the URL does not', function (assert) {
+        const route = this.owner.lookup('route:auth/forgot-password');
+        let resets = 0;
+        const controller = { reset: () => resets++ };
+
+        route.resetController(controller, false);
+        assert.strictEqual(resets, 0);
+
+        route.resetController(controller, true);
+        assert.strictEqual(resets, 1);
+    });
 });

@@ -44,8 +44,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        $this->registerOAuthProviders();
         $this->configureOutboundHttpLogging();
         $this->configureTransactionTripwire();
+    }
+
+    /**
+     * Offer the sign-in providers in config/oauth-providers.php next to core-api's own.
+     *
+     * Done in boot, once every package has registered: core-api merges its config/oauth.php
+     * one top-level key at a time, so an oauth.providers set any earlier would replace
+     * Google, Microsoft, GitHub and Apple instead of adding to them.
+     */
+    protected function registerOAuthProviders(): void
+    {
+        $this->mergeConfigFrom(config_path('oauth-providers.php'), 'oauth.providers');
     }
 
     /**
