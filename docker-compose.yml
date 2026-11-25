@@ -14,7 +14,9 @@ services:
     # Binary logging is on by default in MySQL 8 with a 30-day expiry. Nothing
     # here replicates from or reads the binlog, and the telematics ingest made it
     # grow past 300 GB locally, so it is switched off.
-    command: ["mysqld", "--skip-log-bin"]
+    # MySQL caches data and indexes in the buffer pool. Its default, 128M, is soon smaller than
+    # what the API reads; on a dedicated host give it half of the memory or more.
+    command: ["mysqld", "--skip-log-bin", "--innodb-buffer-pool-size=${MYSQL_BUFFER_POOL_SIZE:-512M}"]
     ports:
       - "3306:3306"
     volumes:
